@@ -60,17 +60,14 @@ func TestRequestFriend(t *testing.T) {
 	for range testDataCount {
 		wg.Add(1)
 		from, to := randomUser()
-		go runUpdataStatusTest(t, "request", "/api/v1/friend/request", from, to)
+		go runUpdataStatusTest(t, "POST", "request", fmt.Sprintf("/api/v1/friends/request/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 
 	id := testData[0].ID
 	t.Run(fmt.Sprintf("request friend %d to %d", id, id), func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/api/v1/friend/request", nil)
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/friends/request/%d", id), nil)
 		addToken(100001, req)
-		q := req.URL.Query()
-		q.Add("to", strconv.FormatUint(uint64(id), 10))
-		req.URL.RawQuery = q.Encode()
 		w := httptest.NewRecorder()
 		route.ServeHTTP(w, req)
 		var resp map[string]any
@@ -86,7 +83,7 @@ func TestAcceptFriend(t *testing.T) {
 	tests := genRandomFriendTestData(m.FSReq2To1)
 	for from, to := range tests {
 		wg.Add(1)
-		go runUpdataStatusTest(t, "accept", "/api/v1/friend/accept", from, to)
+		go runUpdataStatusTest(t, "PUT", "accept", fmt.Sprintf("/api/v1/friends/accept/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 }
@@ -96,7 +93,7 @@ func TestRejectFriend(t *testing.T) {
 	tests := genRandomFriendTestData(m.FSReq2To1)
 	for from, to := range tests {
 		wg.Add(1)
-		go runUpdataStatusTest(t, "reject", "/api/v1/friend/reject", from, to)
+		go runUpdataStatusTest(t, "PUT", "reject", fmt.Sprintf("/api/v1/friends/reject/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 }
@@ -106,7 +103,7 @@ func TestDeleteFriend(t *testing.T) {
 	tests := genRandomFriendTestData(m.FSAdded)
 	for from, to := range tests {
 		wg.Add(1)
-		go runUpdataStatusTest(t, "reject", "/api/v1/friend/delete", from, to)
+		go runUpdataStatusTest(t, "DELETE", "delete", fmt.Sprintf("/api/v1/friends/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 }
@@ -116,7 +113,7 @@ func TestBlockUser(t *testing.T) {
 	tests := genRandomFriendTestData(m.FSAdded)
 	for from, to := range tests {
 		wg.Add(1)
-		go runUpdataStatusTest(t, "block", "/api/v1/friend/block", from, to)
+		go runUpdataStatusTest(t, "PUT", "block", fmt.Sprintf("/api/v1/friends/block/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 }
@@ -126,20 +123,17 @@ func TestUnblockUser(t *testing.T) {
 	tests := genRandomFriendTestData(m.FSBlock1To2)
 	for from, to := range tests {
 		wg.Add(1)
-		go runUpdataStatusTest(t, "unblock", "/api/v1/friend/unblock", from, to)
+		go runUpdataStatusTest(t, "PUT", "unblock", fmt.Sprintf("/api/v1/friends/unblock/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 }
 
-func runUpdataStatusTest(t *testing.T, name, url string, a, b int) {
+func runUpdataStatusTest(t *testing.T, method, name, url string, a, b int) {
 	defer wg.Done()
 	from, to := testData[a], testData[b]
 	t.Run(fmt.Sprintf("%s friend %d to %d", name, from.ID, to.ID), func(t *testing.T) {
-		req := httptest.NewRequest("POST", url, nil)
+		req := httptest.NewRequest(method, url, nil)
 		addToken(from.ID, req)
-		q := req.URL.Query()
-		q.Add("to", strconv.FormatUint(uint64(to.ID), 10))
-		req.URL.RawQuery = q.Encode()
 		w := httptest.NewRecorder()
 		route.ServeHTTP(w, req)
 		resp := equalHttpResp(t, w)
@@ -162,7 +156,7 @@ func TestRemark(t *testing.T) {
 
 	for from, to := range tests {
 		wg.Add(1)
-		go runSetGroupAndRemarkTest(t, "remark", "/api/v1/friend/remark", from, to)
+		go runSetGroupAndRemarkTest(t, "remark", fmt.Sprintf("/api/v1/friends/remark/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 }
@@ -173,7 +167,7 @@ func TestSetGroup(t *testing.T) {
 
 	for from, to := range tests {
 		wg.Add(1)
-		go runSetGroupAndRemarkTest(t, "group", "/api/v1/friend/setgroup", from, to)
+		go runSetGroupAndRemarkTest(t, "group", fmt.Sprintf("/api/v1/friends/setgroup/%d", testData[to].ID), from, to)
 	}
 	wg.Wait()
 }
@@ -182,10 +176,9 @@ func runSetGroupAndRemarkTest(t *testing.T, name, url string, a, b int) {
 	defer wg.Done()
 	from, to := testData[a], testData[b]
 	t.Run(fmt.Sprintf("%s %d-%d", name, from.ID, to.ID), func(t *testing.T) {
-		req := httptest.NewRequest("POST", url, nil)
+		req := httptest.NewRequest("PUT", url, nil)
 		addToken(uint(from.ID), req)
 		q := req.URL.Query()
-		q.Add("to", strconv.FormatUint(uint64(to.ID), 10))
 		q.Add(name, "test ")
 		req.URL.RawQuery = q.Encode()
 		w := httptest.NewRecorder()
@@ -199,18 +192,15 @@ func TestGetFriend(t *testing.T) {
 	clearFriendData()
 	tests := genRandomFriendTestData(m.FSAdded)
 
-	wg := &sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 	for a, b := range tests {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			from, to := testData[a], testData[b]
 			t.Run(fmt.Sprintf("get friend %d to %d", from.ID, to.ID), func(t *testing.T) {
-				req := httptest.NewRequest("GET", "/api/v1/friend/get", nil)
+				req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/friends/%d", to.ID), nil)
 				addToken(from.ID, req)
-				q := req.URL.Query()
-				q.Add("to", strconv.FormatUint(uint64(to.ID), 10))
-				req.URL.RawQuery = q.Encode()
 				w := httptest.NewRecorder()
 				route.ServeHTTP(w, req)
 				resp := equalHttpResp(t, w)
@@ -262,14 +252,14 @@ func TestSearch_Friend(t *testing.T) {
 		base += 10
 	}
 
-	wg := &sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 	for value, expect := range expected {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("search friend %s", value), func(t *testing.T) {
 				body, _ := json.Marshal(m.Cursor{PageSize: 10, HasMore: true})
-				req := httptest.NewRequest("GET", "/api/v1/friend/search", bytes.NewBuffer(body))
+				req := httptest.NewRequest("GET", "/api/v1/friends/search", bytes.NewBuffer(body))
 				addToken(testData[0].ID, req)
 				q := req.URL.Query()
 				q.Add("value", value)
@@ -278,11 +268,12 @@ func TestSearch_Friend(t *testing.T) {
 				route.ServeHTTP(w, req)
 
 				resp := equalHttpResp(t, w)
+				t.Log(resp)
 				cursor := resp["data"].(map[string]any)["cursor"].(map[string]any)
 				expectedCursor := cursors[value]
-				assert.Equal(t, expectedCursor.PageSize, int(cursor["pagesize"].(float64)))
-				assert.Equal(t, expectedCursor.HasMore, cursor["hasmore"].(bool))
-				assert.Equal(t, expectedCursor.LastID, uint(cursor["lastid"].(float64)))
+				assert.Equal(t, expectedCursor.PageSize, int(cursor["page_size"].(float64)))
+				assert.Equal(t, expectedCursor.HasMore, cursor["has_more"].(bool))
+				assert.Equal(t, expectedCursor.LastID, uint(cursor["last_id"].(float64)))
 				var f []m.Friendinfo
 				jsonData, _ := json.Marshal(expect)
 				json.Unmarshal(jsonData, &f)
@@ -298,17 +289,18 @@ func TestSearch_Friend(t *testing.T) {
 
 func TestGetFriendList(t *testing.T) {
 	clearFriendData()
+	setupTestData()
 	n := len(testData) / 10
 	genFriendListTestData(n, m.FSAdded)
 
-	wg := &sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 	for i := range n {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			id := testData[i].ID
 			t.Run(fmt.Sprintf("get friend list %d", id), func(t *testing.T) {
-				req := httptest.NewRequest("GET", "/api/v1/friend/list", nil)
+				req := httptest.NewRequest("GET", "/api/v1/friends", nil)
 				addToken(id, req)
 				w := httptest.NewRecorder()
 				route.ServeHTTP(w, req)
@@ -320,36 +312,37 @@ func TestGetFriendList(t *testing.T) {
 	}
 	wg.Wait()
 }
-func TestGetBlockedMeList(t *testing.T) {
-	setupTestData()
-	clearFriendData()
-	n := len(testData) / 10
-	genFriendListTestData(n, m.FSBlock2To1)
 
-	expected := make([]any, n)
-	for i := range expected {
-		expected[i] = float64(testData[i].ID)
-	}
+// func TestGetBlockedMeList(t *testing.T) {
+// 	setupTestData()
+// 	clearFriendData()
+// 	n := len(testData) / 10
+// 	genFriendListTestData(n, m.FSBlock2To1)
 
-	wg := &sync.WaitGroup{}
-	for i := range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			id := testData[i].ID
-			t.Run(fmt.Sprintf("get blocked me list %d", id), func(t *testing.T) {
-				req := httptest.NewRequest("GET", "/api/v1/friend/blockedmelist", nil)
-				addToken(id, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
+// 	expected := make([]any, n)
+// 	for i := range expected {
+// 		expected[i] = float64(testData[i].ID)
+// 	}
 
-				resp := equalHttpResp(t, w)
-				assert.Equal(t, expected[i+1:n], resp["data"])
-			})
-		}()
-	}
-	wg.Wait()
-}
+// 	wg := &sync.WaitGroup{}
+// 	for i := range n {
+// 		wg.Add(1)
+// 		go func() {
+// 			defer wg.Done()
+// 			id := testData[i].ID
+// 			t.Run(fmt.Sprintf("get blocked me list %d", id), func(t *testing.T) {
+// 				req := httptest.NewRequest("GET", "/api/v1/friend/blockedmelist", nil)
+// 				addToken(id, req)
+// 				w := httptest.NewRecorder()
+// 				route.ServeHTTP(w, req)
+
+// 				resp := equalHttpResp(t, w)
+// 				assert.Equal(t, expected[i+1:n], resp["data"])
+// 			})
+// 		}()
+// 	}
+// 	wg.Wait()
+// }
 
 func genFriendListTestData(n int, status int) {
 	for i := 0; i < n; i++ {

@@ -3,6 +3,7 @@ package repository_test
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -28,8 +29,8 @@ var (
 )
 
 func setupCache(t *testing.T) {
+	cfg := config.LoadConfig(os.Getenv("CHAT_CONFIG"))
 	logger := logger.SetupLogger()
-	cfg := config.LoadConfig("./config.yaml")
 	client = repo.SetupRedis(cfg)
 
 	ctrl := gomock.NewController(t)

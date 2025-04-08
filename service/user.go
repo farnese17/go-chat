@@ -253,3 +253,9 @@ func (u *UserService) GetAccountField(value string) (string, error) {
 	}
 	return "", errorsx.ErrInvalidParams
 }
+
+func (u *UserService) Logout(id uint) error {
+	key := m.CacheToken + strconv.Itoa(int(id))
+	u.service.Cache().Remove(key)
+	return nil
+}

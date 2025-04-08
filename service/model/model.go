@@ -12,12 +12,12 @@ type User struct {
 	UpdatedAt   int64          `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index;column:deleted_at"`
 	Username    string         `json:"username" gorm:"type:varchar(8);not null" validate:"required,min=2,max=8,username" label:"用户名"`
-	Password    string         `json:"-" gorm:"type:varchar(64);not null" validate:"required,pwlength,nospace" label:"密码" `
+	Password    string         `json:"password" gorm:"type:varchar(64);not null" validate:"required,pwlength,nospace" label:"密码" `
 	Phone       string         `json:"phone" gorm:"type:varchar(11);unique;default:null;index" validate:"omitempty,mobile" label:"手机号"`
 	Email       string         `json:"email" gorm:"type:varchar(30);unique;default:null;index" validate:"omitempty,email" label:"邮箱"`
 	Avatar      string         `json:"avatar"`
-	BanLevel    int            `json:"benl_evel" gorm:"type:int;column:ban_level"`
-	BanExpireAt int64          `json:"ban_expire_at" gorm:"column:ban_expire_at"`
+	BanLevel    int            `json:"ban_level" gorm:"type:int;column:ban_level"`
+	BanExpireAt int64          `json:"ban_expire_at" gorm:"default:null;column:ban_expire_at"`
 
 	Friend1 []Friend `json:"-" gorm:"foreignKey:User1;references:ID;constraint:OnDelete:CASCADE"`
 	Friend2 []Friend `json:"-" gorm:"foreignKey:User2;references:ID;constraint:OnDelete:CASCADE"`

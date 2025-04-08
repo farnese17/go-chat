@@ -24,8 +24,6 @@ type Service interface {
 	Cache() Cache
 }
 
-// var FileService *fileserver.FileService
-
 func SetupSQL(dsn string) (*gorm.DB, *sql.DB) {
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
@@ -54,7 +52,6 @@ func SetupSQL(dsn string) (*gorm.DB, *sql.DB) {
 		zap.Int("MaxOpenConns", 200),
 		zap.Duration("ConnMaxLifeTime", time.Hour),
 	)
-	// FileService = fileserver.NewFileService(db)
 	return db, sqlDB
 }
 

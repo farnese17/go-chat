@@ -46,6 +46,7 @@ func VerifyAminID() gin.HandlerFunc {
 	}
 }
 
+// BanFilter is a middleware that checks if the user is banned.
 func BanFilter() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		s := registry.GetService()
