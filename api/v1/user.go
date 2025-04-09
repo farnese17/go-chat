@@ -138,12 +138,12 @@ func Upload(c *gin.Context) {
 }
 
 func Download(c *gin.Context) {
-	name := c.Param("file")
-	filePath, err := fs.Download(name)
+	id := c.Param("id")
+	filePath, err := fs.Download(id)
 	if err != nil {
 		c.Abort()
 		return
 	}
-	c.Header("Content-Disposition", "inline; filename="+name)
+	c.Header("Content-Disposition", "inline; filename="+id)
 	c.File(filePath)
 }

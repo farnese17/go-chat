@@ -63,7 +63,8 @@ func TestUpload(t *testing.T) {
 			writeTestFile(t, file, tt.content)
 			want, err := ls.(*storage.LocalStorage).HashFile(file)
 			assert.NoError(t, err)
-			want += path.Ext(tt.filename)
+			ext := path.Ext(tt.filename)
+			want += ext
 			_, err = file.Seek(0, 0)
 			assert.NoError(t, err)
 
@@ -72,7 +73,7 @@ func TestUpload(t *testing.T) {
 			if tt.IsExist == nil {
 				assert.Equal(t, want, got)
 			} else {
-				assert.True(t, true, len(got) > len(want)+1)
+				assert.True(t, len(got) > len(want)-len(ext)+1)
 				idx := strings.LastIndex(want, ".")
 				assert.Contains(t, got, want[:idx])
 			}

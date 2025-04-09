@@ -46,32 +46,32 @@ func (mr *MockDBMockRecorder) Close() *gomock.Call {
 }
 
 // DeleteFile mocks base method.
-func (m *MockDB) DeleteFile(name string) error {
+func (m *MockDB) DeleteFile(id string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteFile", name)
+	ret := m.ctrl.Call(m, "DeleteFile", id)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteFile indicates an expected call of DeleteFile.
-func (mr *MockDBMockRecorder) DeleteFile(name interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteFile(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFile", reflect.TypeOf((*MockDB)(nil).DeleteFile), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFile", reflect.TypeOf((*MockDB)(nil).DeleteFile), id)
 }
 
 // GetFilePath mocks base method.
-func (m *MockDB) GetFilePath(name string) (string, error) {
+func (m *MockDB) GetFilePath(id string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFilePath", name)
+	ret := m.ctrl.Call(m, "GetFilePath", id)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetFilePath indicates an expected call of GetFilePath.
-func (mr *MockDBMockRecorder) GetFilePath(name interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) GetFilePath(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilePath", reflect.TypeOf((*MockDB)(nil).GetFilePath), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilePath", reflect.TypeOf((*MockDB)(nil).GetFilePath), id)
 }
 
 // IsExist mocks base method.
