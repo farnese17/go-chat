@@ -2,9 +2,9 @@ package storage_test
 
 import (
 	"os"
-	"path"
-	"strings"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/farnese17/chat/pkg/storage"
 	"github.com/farnese17/chat/pkg/storage/mock"
@@ -57,26 +57,44 @@ func TestUpload(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m.EXPECT().IsExist(gomock.Any(), gomock.Any()).Return(tt.IsExist)
-			m.EXPECT().SaveFilePath(gomock.Any(), gomock.Any()).Return(nil)
+			m.EXPECT().SaveFilePath(gomock.Any()).Return(nil)
+			// 创建测试文件
 			file := createTestFile(t, fileDir, tt.filename)
 			defer file.Close()
 			writeTestFile(t, file, tt.content)
+
+			// 计算新建文件的哈希值
 			want, err := ls.(*storage.LocalStorage).HashFile(file)
 			assert.NoError(t, err)
-			ext := path.Ext(tt.filename)
-			want += ext
 			_, err = file.Seek(0, 0)
 			assert.NoError(t, err)
 
-			got, err := ls.Upload(file, tt.filename)
+			// 执行
+			_, err = ls.Upload(file, tt.filename)
 			assert.NoError(t, err)
+
+			// 预期保存的目录
+			ext := filepath.Ext(tt.filename)
+			dir := filepath.Join(fileDir, time.Now().Format("20060102"), ext[1:])
+			// 模糊搜索
+			var pattern string
 			if tt.IsExist == nil {
-				assert.Equal(t, want, got)
+				pattern = filepath.Join(dir, want+ext)
 			} else {
-				assert.True(t, len(got) > len(want)-len(ext)+1)
-				idx := strings.LastIndex(want, ".")
-				assert.Contains(t, got, want[:idx])
+				pattern = filepath.Join(dir, want+"_*"+ext)
 			}
+
+			// 搜索匹配的文件
+			matches, err := filepath.Glob(pattern)
+			assert.NoError(t, err)
+
+			f, err := os.Open(matches[0])
+			assert.NoError(t, err)
+			defer f.Close()
+			// 对比保存文件的哈希值
+			got, err := ls.(*storage.LocalStorage).HashFile(f)
+			assert.NoError(t, err)
+			assert.Equal(t, want, got)
 		})
 	}
 }

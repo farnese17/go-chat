@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ type File struct {
 	ID        uint   `gorm:"primaryKey;autoIncrement"`
 	Name      string `gorm:"type:varchar(100);not null;unique"`
 	Path      string `gorm:"type:varchar(200);not null"`
-	DeletedAt int64  `gorm:"type:date;column:deleted_at"`
+	DeletedAt int64  `gorm:"default:null;column:deleted_at"`
 }
 
 var (
@@ -33,8 +34,8 @@ const (
 
 type DB interface {
 	IsExist(name, path string) error
-	GetFilePath(id string) (string, error)
-	SaveFilePath(name string, path string) error
+	Get(id string) (*File, error)
+	SaveFilePath(f *File) error
 	DeleteFile(id string) error
 	Close()
 }
@@ -124,29 +125,27 @@ func (m *sqlDB) IsExist(name, path string) error {
 }
 
 // 保存文件路径
-func (m *sqlDB) SaveFilePath(name string, path string) error {
-	file := File{Name: name, Path: path}
-	err := m.db.Create(&file).Error
+func (m *sqlDB) SaveFilePath(f *File) error {
+	err := m.db.Create(f).Error
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// 获取文件路径
-func (m *sqlDB) GetFilePath(id string) (string, error) {
-	var path string
-	err := m.db.Model(&File{}).
-		Select("path").
-		Where("id = ? AND deleted_at is null", id).
-		First(&path).Error
+// 获取文件
+func (m *sqlDB) Get(id string) (*File, error) {
+	var file *File
+	err := m.db.Model(&File{}).Where("id = ? AND deleted_at is null", id).
+		First(&file).Error
+	fmt.Println(file)
 	if err := m.HandleError(err); err != nil {
-		return "", err
+		return nil, err
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", ErrNotFound
+		return nil, ErrNotFound
 	}
-	return path, nil
+	return file, nil
 }
 
 func (m *sqlDB) DeleteFile(id string) error {

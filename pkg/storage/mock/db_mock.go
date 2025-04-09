@@ -7,6 +7,7 @@ package mock
 import (
 	reflect "reflect"
 
+	storage "github.com/farnese17/chat/pkg/storage"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -59,19 +60,19 @@ func (mr *MockDBMockRecorder) DeleteFile(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFile", reflect.TypeOf((*MockDB)(nil).DeleteFile), id)
 }
 
-// GetFilePath mocks base method.
-func (m *MockDB) GetFilePath(id string) (string, error) {
+// Get mocks base method.
+func (m *MockDB) Get(id string) (*storage.File, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFilePath", id)
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "Get", id)
+	ret0, _ := ret[0].(*storage.File)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetFilePath indicates an expected call of GetFilePath.
-func (mr *MockDBMockRecorder) GetFilePath(id interface{}) *gomock.Call {
+// Get indicates an expected call of Get.
+func (mr *MockDBMockRecorder) Get(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilePath", reflect.TypeOf((*MockDB)(nil).GetFilePath), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockDB)(nil).Get), id)
 }
 
 // IsExist mocks base method.
@@ -89,15 +90,15 @@ func (mr *MockDBMockRecorder) IsExist(name, path interface{}) *gomock.Call {
 }
 
 // SaveFilePath mocks base method.
-func (m *MockDB) SaveFilePath(name, path string) error {
+func (m *MockDB) SaveFilePath(f *storage.File) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SaveFilePath", name, path)
+	ret := m.ctrl.Call(m, "SaveFilePath", f)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SaveFilePath indicates an expected call of SaveFilePath.
-func (mr *MockDBMockRecorder) SaveFilePath(name, path interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) SaveFilePath(f interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFilePath", reflect.TypeOf((*MockDB)(nil).SaveFilePath), name, path)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFilePath", reflect.TypeOf((*MockDB)(nil).SaveFilePath), f)
 }

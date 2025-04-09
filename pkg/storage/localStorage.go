@@ -8,9 +8,8 @@ import (
 	"log"
 	"mime/multipart"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -19,8 +18,8 @@ var (
 )
 
 type Storage interface {
-	Upload(file multipart.File, filename string) (string, error)
-	Download(id string) (string, error)
+	Upload(file multipart.File, filename string) (uint, error)
+	Download(id string) (*File, error)
 	Delete(id string) error
 }
 
@@ -31,10 +30,7 @@ type LocalStorage struct {
 }
 
 func NewLocalStorage(fileDir, logDir string, option Option) (Storage, error) {
-	fileDir = path.Clean(fileDir)
-	if !strings.HasSuffix(fileDir, "/") {
-		fileDir += "/"
-	}
+	fileDir = filepath.Clean(fileDir)
 	logger, err := SetupLogger(logDir)
 	if err != nil {
 		fmt.Println(err)
@@ -54,19 +50,20 @@ func NewLocalStorage(fileDir, logDir string, option Option) (Storage, error) {
 	return ls, nil
 }
 
-func (ls *LocalStorage) Upload(file multipart.File, filename string) (string, error) {
+func (ls *LocalStorage) Upload(file multipart.File, filename string) (uint, error) {
 	defer file.Close()
 	t := time.Now().Format("20060102")
-	dirPath := ls.Path + t + "/"
+	dirPath := filepath.Join(ls.Path, t)
 	name, err := ls.HashFile(file)
 	if err != nil {
-		return "", ErrUploadFailed
+		return 0, ErrUploadFailed
 	}
+	file.Seek(0, io.SeekStart)
 
-	ext := path.Ext(filename)
+	ext := filepath.Ext(filename)
 	fullname := name
 	if len(ext) > 1 {
-		dirPath += ext[1:] + "/"
+		dirPath = filepath.Join(dirPath, ext[1:])
 		fullname += ext
 	}
 	if err := ls.DB.IsExist(fullname, dirPath); err != nil && !errors.Is(err, ErrNotFound) {
@@ -76,38 +73,40 @@ func (ls *LocalStorage) Upload(file multipart.File, filename string) (string, er
 			if len(ext) > 1 {
 				fullname += ext
 			}
+			fmt.Println(fullname)
 		} else {
-			return "", err
+			return 0, err
 		}
 	}
 
 	if err := os.MkdirAll(dirPath, 0740); err != nil {
-		fmt.Println(dirPath, err)
-		return "", err
+		return 0, err
 	}
 
-	filePath := dirPath + fullname
+	filePath := filepath.Join(dirPath, fullname)
 	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0740)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	defer f.Close()
 
-	file.Seek(0, io.SeekStart)
 	if _, err := io.Copy(f, file); err != nil {
-		return "", ErrUploadFailed
+		os.Remove(filePath)
+		return 0, ErrUploadFailed
 	}
 
-	if err := ls.DB.SaveFilePath(fullname, dirPath); err != nil {
-		return "", ErrUploadFailed
+	saveFile := &File{Name: fullname, Path: dirPath}
+	if err := ls.DB.SaveFilePath(saveFile); err != nil {
+		os.Remove(filePath)
+		return 0, ErrUploadFailed
 	}
 
-	return fullname, nil
+	return saveFile.ID, nil
 }
 
-func (ls *LocalStorage) Download(id string) (string, error) {
-	return ls.DB.GetFilePath(id)
+func (ls *LocalStorage) Download(id string) (*File, error) {
+	return ls.DB.Get(id)
 }
 
 func (ls *LocalStorage) Delete(id string) error {

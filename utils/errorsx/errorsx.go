@@ -17,7 +17,7 @@ var (
 	ErrUnkonwnMessageType            = errors.New("未知消息类型")
 	ErrFailed                        = errors.New("FAIL")
 	ErrOperactionTimeout             = errors.New("操作超时")
-	ErrNotFound                      = errors.New("找不到目标")
+	ErrNotFound                      = errors.New("not found")
 	ErrInvalidToken                  = errors.New("无效token")
 	ErrCantParseToken                = errors.New("无法解析token,请稍后再试")
 	ErrServerClosed                  = errors.New("服务已停止")

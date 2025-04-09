@@ -16,7 +16,8 @@ func SetupRouter(mode string) *gin.Engine {
 	r.Use(middleware.Logger())
 	r.Use(middleware.Cors())
 
-	r.GET("/files/:id", v1.Download)
+	r.GET("/api/v1/files/download/:id", v1.Download)
+	r.GET("/api/v1/files/:id", v1.GetFile)
 
 	auth := r.Group("api/v1")
 	auth.Use(middleware.JWT(http.StatusOK))

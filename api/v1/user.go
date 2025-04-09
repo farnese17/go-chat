@@ -1,9 +1,9 @@
 package v1
 
 import (
-	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/farnese17/chat/config"
 	"github.com/farnese17/chat/middleware"
@@ -131,19 +131,28 @@ func LogOut(c *gin.Context) {
 func Upload(c *gin.Context) {
 	file, header, _ := c.Request.FormFile("file")
 	filename := header.Filename
-	fmt.Println(filename)
 	ginx.HasDataResponse(c, func() (any, error) {
 		return fs.Upload(file, filename)
 	})
 }
 
 func Download(c *gin.Context) {
+	handleGetFile(c, "attachment")
+}
+
+func GetFile(c *gin.Context) {
+	handleGetFile(c, "inline")
+}
+
+func handleGetFile(c *gin.Context, disposition string) {
 	id := c.Param("id")
-	filePath, err := fs.Download(id)
+	f, err := fs.Download(id)
 	if err != nil {
-		c.Abort()
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"status":  http.StatusNotFound,
+			"message": errorsx.ErrNotFound.Error()})
 		return
 	}
-	c.Header("Content-Disposition", "inline; filename="+id)
-	c.File(filePath)
+	c.Header("Content-Disposition", disposition+"; filename="+f.Name)
+	c.File(filepath.Join(f.Path, f.Name))
 }
