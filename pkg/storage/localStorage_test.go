@@ -70,7 +70,7 @@ func TestUpload(t *testing.T) {
 			assert.NoError(t, err)
 
 			// 执行
-			_, err = ls.Upload(file, tt.filename)
+			_, err = ls.Upload(1, file, tt.filename)
 			assert.NoError(t, err)
 
 			// 预期保存的目录

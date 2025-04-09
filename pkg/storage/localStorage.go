@@ -18,9 +18,9 @@ var (
 )
 
 type Storage interface {
-	Upload(file multipart.File, filename string) (uint, error)
+	Upload(uploader uint, file multipart.File, filename string) (uint, error)
 	Download(id string) (*File, error)
-	Delete(id string) error
+	Delete(uid uint, fileID string) error
 }
 
 type LocalStorage struct {
@@ -50,7 +50,7 @@ func NewLocalStorage(fileDir, logDir string, option Option) (Storage, error) {
 	return ls, nil
 }
 
-func (ls *LocalStorage) Upload(file multipart.File, filename string) (uint, error) {
+func (ls *LocalStorage) Upload(uploader uint, file multipart.File, filename string) (uint, error) {
 	defer file.Close()
 	t := time.Now().Format("20060102")
 	dirPath := filepath.Join(ls.Path, t)
@@ -73,7 +73,6 @@ func (ls *LocalStorage) Upload(file multipart.File, filename string) (uint, erro
 			if len(ext) > 1 {
 				fullname += ext
 			}
-			fmt.Println(fullname)
 		} else {
 			return 0, err
 		}
@@ -96,7 +95,7 @@ func (ls *LocalStorage) Upload(file multipart.File, filename string) (uint, erro
 		return 0, ErrUploadFailed
 	}
 
-	saveFile := &File{Name: fullname, Path: dirPath}
+	saveFile := &File{Name: fullname, Path: dirPath, UploadedBy: uploader}
 	if err := ls.DB.SaveFilePath(saveFile); err != nil {
 		os.Remove(filePath)
 		return 0, ErrUploadFailed
@@ -109,8 +108,8 @@ func (ls *LocalStorage) Download(id string) (*File, error) {
 	return ls.DB.Get(id)
 }
 
-func (ls *LocalStorage) Delete(id string) error {
-	return ls.DB.DeleteFile(id)
+func (ls *LocalStorage) Delete(uid uint, fileID string) error {
+	return ls.DB.Delete(uid, fileID)
 }
 
 // hash.sha256作为文件名

@@ -131,8 +131,9 @@ func LogOut(c *gin.Context) {
 func Upload(c *gin.Context) {
 	file, header, _ := c.Request.FormFile("file")
 	filename := header.Filename
+	id := ginx.GetUserID(c)
 	ginx.HasDataResponse(c, func() (any, error) {
-		return fs.Upload(file, filename)
+		return fs.Upload(id, file, filename)
 	})
 }
 
@@ -155,4 +156,12 @@ func handleGetFile(c *gin.Context, disposition string) {
 	}
 	c.Header("Content-Disposition", disposition+"; filename="+f.Name)
 	c.File(filepath.Join(f.Path, f.Name))
+}
+
+func DeleteFile(c *gin.Context) {
+	fileID := c.Param("id")
+	id := ginx.GetUserID(c)
+	ginx.NoDataResponse(c, func() error {
+		return fs.Delete(id, fileID)
+	})
 }

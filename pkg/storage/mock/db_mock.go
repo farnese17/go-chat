@@ -46,18 +46,18 @@ func (mr *MockDBMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDB)(nil).Close))
 }
 
-// DeleteFile mocks base method.
-func (m *MockDB) DeleteFile(id string) error {
+// Delete mocks base method.
+func (m *MockDB) Delete(uid uint, fileID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteFile", id)
+	ret := m.ctrl.Call(m, "Delete", uid, fileID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteFile indicates an expected call of DeleteFile.
-func (mr *MockDBMockRecorder) DeleteFile(id interface{}) *gomock.Call {
+// Delete indicates an expected call of Delete.
+func (mr *MockDBMockRecorder) Delete(uid, fileID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFile", reflect.TypeOf((*MockDB)(nil).DeleteFile), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockDB)(nil).Delete), uid, fileID)
 }
 
 // Get mocks base method.

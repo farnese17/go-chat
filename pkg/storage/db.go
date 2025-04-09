@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -15,10 +14,12 @@ import (
 )
 
 type File struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement"`
-	Name      string `gorm:"type:varchar(100);not null;unique"`
-	Path      string `gorm:"type:varchar(200);not null"`
-	DeletedAt int64  `gorm:"default:null;column:deleted_at"`
+	ID         uint   `gorm:"primaryKey;autoIncrement"`
+	Name       string `gorm:"type:varchar(100);not null;unique"`
+	Path       string `gorm:"type:varchar(200);not null"`
+	UploadedBy uint   `gorm:"not null;column:uploaded_by"`
+	CreatedAt  int64  `gorm:"autoCreateTime;column:created_at"`
+	DeletedAt  int64  `gorm:"default:null;column:deleted_at"`
 }
 
 var (
@@ -26,6 +27,7 @@ var (
 	ErrNotFound          = errors.New("not found")
 	ErrTimeout           = errors.New("time out")
 	ErrUnsupportDataBase = errors.New("unsupport database")
+	ErrPermissiondenied  = errors.New("permission denied")
 )
 
 const (
@@ -36,7 +38,7 @@ type DB interface {
 	IsExist(name, path string) error
 	Get(id string) (*File, error)
 	SaveFilePath(f *File) error
-	DeleteFile(id string) error
+	Delete(uid uint, fileID string) error
 	Close()
 }
 
@@ -138,7 +140,6 @@ func (m *sqlDB) Get(id string) (*File, error) {
 	var file *File
 	err := m.db.Model(&File{}).Where("id = ? AND deleted_at is null", id).
 		First(&file).Error
-	fmt.Println(file)
 	if err := m.HandleError(err); err != nil {
 		return nil, err
 	}
@@ -148,11 +149,14 @@ func (m *sqlDB) Get(id string) (*File, error) {
 	return file, nil
 }
 
-func (m *sqlDB) DeleteFile(id string) error {
-	q := `UPDATE file SET deleted_at = ? WHERE id = ?`
-	err := m.db.Exec(q, time.Now().Unix(), id).Error
-	if err := m.HandleError(err); err != nil {
+func (m *sqlDB) Delete(uid uint, fileID string) error {
+	q := `UPDATE file SET deleted_at = ? WHERE id = ? AND uploaded_by = ?`
+	result := m.db.Exec(q, time.Now().Unix(), fileID, uid)
+	if err := m.HandleError(result.Error); err != nil {
 		return err
+	}
+	if result.RowsAffected == 0 {
+		return ErrPermissiondenied
 	}
 	return nil
 }

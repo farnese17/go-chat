@@ -24,7 +24,11 @@ func SetupRouter(mode string) *gin.Engine {
 	auth.Use(middleware.VerifyTokenInWhitelist(http.StatusOK))
 	{
 		auth.POST("/logout", v1.LogOut)
-		auth.POST("/files/upload", v1.Upload)
+
+		// files
+		files := auth.Group("/files")
+		files.POST("", v1.Upload)
+		files.DELETE("/:id", v1.DeleteFile)
 
 		users := auth.Group("/users")
 		// user
