@@ -46,6 +46,20 @@ func (mr *MockDBMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDB)(nil).Close))
 }
 
+// CreateReference mocks base method.
+func (m *MockDB) CreateReference(f *storage.FileReference) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateReference", f)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateReference indicates an expected call of CreateReference.
+func (mr *MockDBMockRecorder) CreateReference(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateReference", reflect.TypeOf((*MockDB)(nil).CreateReference), f)
+}
+
 // Delete mocks base method.
 func (m *MockDB) Delete(uid uint, fileID string) error {
 	m.ctrl.T.Helper()
@@ -58,6 +72,22 @@ func (m *MockDB) Delete(uid uint, fileID string) error {
 func (mr *MockDBMockRecorder) Delete(uid, fileID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockDB)(nil).Delete), uid, fileID)
+}
+
+// FindFileByHash mocks base method.
+func (m *MockDB) FindFileByHash(uploader uint, hash string) (uint, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindFileByHash", uploader, hash)
+	ret0, _ := ret[0].(uint)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FindFileByHash indicates an expected call of FindFileByHash.
+func (mr *MockDBMockRecorder) FindFileByHash(uploader, hash interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindFileByHash", reflect.TypeOf((*MockDB)(nil).FindFileByHash), uploader, hash)
 }
 
 // Get mocks base method.
@@ -75,30 +105,17 @@ func (mr *MockDBMockRecorder) Get(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockDB)(nil).Get), id)
 }
 
-// IsExist mocks base method.
-func (m *MockDB) IsExist(name, path string) error {
+// SaveFile mocks base method.
+func (m *MockDB) SaveFile(f *storage.File) (*storage.FileReference, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsExist", name, path)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "SaveFile", f)
+	ret0, _ := ret[0].(*storage.FileReference)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// IsExist indicates an expected call of IsExist.
-func (mr *MockDBMockRecorder) IsExist(name, path interface{}) *gomock.Call {
+// SaveFile indicates an expected call of SaveFile.
+func (mr *MockDBMockRecorder) SaveFile(f interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsExist", reflect.TypeOf((*MockDB)(nil).IsExist), name, path)
-}
-
-// SaveFilePath mocks base method.
-func (m *MockDB) SaveFilePath(f *storage.File) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SaveFilePath", f)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SaveFilePath indicates an expected call of SaveFilePath.
-func (mr *MockDBMockRecorder) SaveFilePath(f interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFilePath", reflect.TypeOf((*MockDB)(nil).SaveFilePath), f)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFile", reflect.TypeOf((*MockDB)(nil).SaveFile), f)
 }

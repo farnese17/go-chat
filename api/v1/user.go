@@ -155,7 +155,8 @@ func handleGetFile(c *gin.Context, disposition string) {
 		return
 	}
 	c.Header("Content-Disposition", disposition+"; filename="+f.Name)
-	c.File(filepath.Join(f.Path, f.Name))
+	ext := filepath.Ext(f.Name)
+	c.File(filepath.Join(f.Path, f.Hash+ext))
 }
 
 func DeleteFile(c *gin.Context) {
