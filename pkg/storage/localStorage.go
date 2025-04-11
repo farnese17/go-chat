@@ -135,7 +135,7 @@ func (ls *LocalStorage) rename(oldName, newName, dir string) error {
 	oldPath := filepath.Join(dir, oldName)
 	newPath := filepath.Join(dir, newName)
 	if err := os.Rename(oldPath, newPath); err != nil {
-		os.Remove(oldPath)
+		// os.Remove(oldPath)
 		return err
 	}
 	return nil
