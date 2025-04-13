@@ -1,9 +1,9 @@
 package v1
 
 import (
+	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/farnese17/chat/config"
 	"github.com/farnese17/chat/middleware"
@@ -129,7 +129,11 @@ func LogOut(c *gin.Context) {
 }
 
 func Upload(c *gin.Context) {
-	file, header, _ := c.Request.FormFile("file")
+	file, header, err := c.Request.FormFile("file")
+	if err != nil || file == nil {
+		ginx.HandleInvalidParam(c)
+		return
+	}
 	filename := header.Filename
 	id := ginx.GetUserID(c)
 	ginx.HasDataResponse(c, func() (any, error) {
@@ -154,9 +158,9 @@ func handleGetFile(c *gin.Context, disposition string) {
 			"message": errorsx.ErrNotFound.Error()})
 		return
 	}
-	c.Header("Content-Disposition", disposition+"; filename="+f.Name)
-	ext := filepath.Ext(f.Name)
-	c.File(filepath.Join(f.Path, f.Hash+ext))
+	c.Header("Content-Disposition", fmt.Sprintf("%s; filename=%s;filename*=UTF-8''%s",
+		disposition, f.Name, f.Name))
+	c.File(f.Path)
 }
 
 func DeleteFile(c *gin.Context) {

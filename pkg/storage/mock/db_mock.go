@@ -75,19 +75,19 @@ func (mr *MockDBMockRecorder) Delete(uid, fileID interface{}) *gomock.Call {
 }
 
 // FindFileByHash mocks base method.
-func (m *MockDB) FindFileByHash(uploader uint, hash string) (uint, bool, error) {
+func (m *MockDB) FindFileByHash(hash string) ([]*storage.File, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindFileByHash", uploader, hash)
-	ret0, _ := ret[0].(uint)
+	ret := m.ctrl.Call(m, "FindFileByHash", hash)
+	ret0, _ := ret[0].([]*storage.File)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // FindFileByHash indicates an expected call of FindFileByHash.
-func (mr *MockDBMockRecorder) FindFileByHash(uploader, hash interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) FindFileByHash(hash interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindFileByHash", reflect.TypeOf((*MockDB)(nil).FindFileByHash), uploader, hash)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindFileByHash", reflect.TypeOf((*MockDB)(nil).FindFileByHash), hash)
 }
 
 // Get mocks base method.

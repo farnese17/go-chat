@@ -17,10 +17,10 @@ type File struct {
 	ID         uint   `gorm:"primaryKey;autoIncrement"`
 	Name       string `gorm:"type:varchar(50);not null"`
 	Path       string `gorm:"type:varchar(200);not null"`
-	Hash       string `gorm:"type:varchar(100);not null;column:hash;uniqueIndex:idx_hash"`
-	UploadedBy uint   `gorm:"not null;column:uploaded_by;uniqueIndex:idx_hash"`
+	Hash       string `gorm:"type:varchar(100);not null;column:hash;index:idx_hash"`
+	UploadedBy uint   `gorm:"not null;column:uploaded_by"`
 	CreatedAt  int64  `gorm:"autoCreateTime;column:created_at"`
-	// DeletedAt  int64  `gorm:"default:null;column:deleted_at;uniqueIndex:idx_hash"`
+	DeletedAt  int64  `gorm:"default:null;column:deleted_at"`
 }
 
 type FileReference struct {
@@ -46,7 +46,7 @@ const (
 )
 
 type DB interface {
-	FindFileByHash(uploader uint, hash string) (uint, bool, error)
+	FindFileByHash(hash string) ([]*File, bool, error)
 	Get(id string) (*File, error)
 	CreateReference(f *FileReference) error
 	SaveFile(f *File) (*FileReference, error)
@@ -125,16 +125,16 @@ func (m *sqlDB) HandleError(err error) error {
 }
 
 // 检查文件是否已存在
-func (m *sqlDB) FindFileByHash(uploader uint, hash string) (uint, bool, error) {
-	var file File
-	err := m.db.Where("hash = ? AND uploaded_by = ?", hash, uploader).First(&file).Error
-	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-		return 0, false, nil
-	}
+func (m *sqlDB) FindFileByHash(hash string) ([]*File, bool, error) {
+	var files []*File
+	err := m.db.Where("hash = ?", hash).Find(&files).Error
 	if err := m.HandleError(err); err != nil {
-		return 0, false, err
+		return nil, false, err
 	}
-	return file.ID, true, nil
+	if len(files) == 0 {
+		return files, false, nil
+	}
+	return files, true, nil
 }
 
 // 创建文件引用

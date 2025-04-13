@@ -24,10 +24,21 @@ type Storage interface {
 	Delete(uid uint, fileID string) error
 }
 
+type IDGenerator interface {
+	NewID() string
+}
+
+type DefaultIDGenerator struct{}
+
+func (*DefaultIDGenerator) NewID() string {
+	return uuid.NewString()
+}
+
 type LocalStorage struct {
 	Path   string
 	DB     DB
 	Logger *Logger
+	IDGen  IDGenerator
 }
 
 func NewLocalStorage(fileDir, logDir string, option Option) (Storage, error) {
@@ -46,6 +57,7 @@ func NewLocalStorage(fileDir, logDir string, option Option) (Storage, error) {
 		Path:   fileDir,
 		DB:     db,
 		Logger: logger,
+		IDGen:  &DefaultIDGenerator{},
 	}
 	log.Println("Success connection to DB")
 	return ls, nil
@@ -67,10 +79,10 @@ func (ls *LocalStorage) Upload(uploader uint, file multipart.File, filename stri
 		return 0, err
 	}
 
-	// 创建临时文件，添加后缀避免后续重命名失败的额外处理
-	tempName := ls.addExt(uuid.NewString(), ext)
-	filePath := filepath.Join(dir, tempName)
-	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0644)
+	// 创建文件,计算hash值
+	diskName := ls.addExt(ls.IDGen.NewID(), ext)
+	filePath := filepath.Join(dir, diskName)
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return 0, err
 	}
@@ -81,10 +93,9 @@ func (ls *LocalStorage) Upload(uploader uint, file multipart.File, filename stri
 		return 0, err
 	}
 	hash := fmt.Sprintf("%x", h.Sum(nil))
-	fullname := ls.addExt(hash, ext)
 
 	// 检查文件是否存在,存在则创建引用直接返回
-	id, created, err := ls.checkAndCreateReference(uploader, hash, filename)
+	id, created, err := ls.checkAndCreateReference(uploader, hash, filename, f)
 	if err != nil {
 		os.Remove(filePath)
 		return 0, err
@@ -94,16 +105,11 @@ func (ls *LocalStorage) Upload(uploader uint, file multipart.File, filename stri
 		return id, nil
 	}
 
-	// 重命名
-	if err := ls.rename(tempName, fullname, dir); err != nil {
-		// 重命名失败，降级使用uuid
-		fullname = tempName
-	}
 	// 保存文件路径
-	saveFile := &File{Name: filename, Path: dir, Hash: hash, UploadedBy: uploader}
+	saveFile := &File{Name: filename, Path: filePath, Hash: hash, UploadedBy: uploader}
 	var fileID uint
 	if fileRef, err := ls.DB.SaveFile(saveFile); err != nil {
-		os.Remove(filepath.Join(dir, fullname))
+		os.Remove(filePath)
 		return 0, ErrUploadFailed
 	} else {
 		fileID = fileRef.ID
@@ -113,8 +119,6 @@ func (ls *LocalStorage) Upload(uploader uint, file multipart.File, filename stri
 }
 
 // view or download
-// 1. inline: 浏览器直接打开
-// 2. attachment: 浏览器下载
 func (ls *LocalStorage) Download(id string) (*File, error) {
 	return ls.DB.Get(id)
 }
@@ -130,31 +134,27 @@ func (ls *LocalStorage) addExt(name, ext string) string {
 	return name
 }
 
-// 重命名临时文件
-func (ls *LocalStorage) rename(oldName, newName, dir string) error {
-	oldPath := filepath.Join(dir, oldName)
-	newPath := filepath.Join(dir, newName)
-	if err := os.Rename(oldPath, newPath); err != nil {
-		// os.Remove(oldPath)
-		return err
-	}
-	return nil
-}
-
 // 检查文件是否存在
 // 如果不存在，返回false和nil,表示没有插入引用表
 // 如果存在，插入引用表
 // 返回true和引用ID，表示插入引用表成功
-func (ls *LocalStorage) checkAndCreateReference(uploader uint, hash string, filename string) (uint, bool, error) {
-	fileID, exist, err := ls.DB.FindFileByHash(uploader, hash)
+func (ls *LocalStorage) checkAndCreateReference(uploader uint, hash string, filename string, newFile *os.File) (uint, bool, error) {
+	files, exist, err := ls.DB.FindFileByHash(hash)
 	if err != nil {
 		return 0, false, err
 	}
 	if !exist {
 		return 0, false, nil
 	}
+
+	// hash值相同，对比文件
+	f, same := ls.compareFile(newFile, files...)
+	if !same {
+		return 0, false, nil
+	}
+
 	fileRef := &FileReference{
-		FileID:     fileID,
+		FileID:     f.ID,
 		Name:       filename,
 		UploadedBy: uploader,
 	}
@@ -162,6 +162,44 @@ func (ls *LocalStorage) checkAndCreateReference(uploader uint, hash string, file
 		return 0, false, err
 	}
 	return fileRef.ID, true, nil
+}
+
+func (ls *LocalStorage) compareFile(newFile *os.File, oldFilesPath ...*File) (*File, bool) {
+	newFileInfo, _ := newFile.Stat()
+	newFileSize := newFileInfo.Size()
+
+	for _, f := range oldFilesPath {
+		oldFile, err := os.Open(f.Path)
+		if err != nil {
+			continue
+		}
+		defer oldFile.Close()
+
+		oldFileInfo, _ := oldFile.Stat()
+		oldFileSize := oldFileInfo.Size()
+		if newFileSize != oldFileSize {
+			continue
+		}
+
+		newFile.Seek(0, 0)
+		oldFile.Seek(0, 0)
+		buffer1 := make([]byte, 8196)
+		buffer2 := make([]byte, 8196)
+		for {
+			n1, err1 := newFile.Read(buffer1)
+			n2, err2 := oldFile.Read(buffer2)
+			if n1 != n2 || string(buffer1[:n1]) != string(buffer2[:n2]) {
+				break
+			}
+			if err1 == io.EOF && err2 == io.EOF {
+				return f, true
+			}
+			if err1 != nil || err2 != nil {
+				break
+			}
+		}
+	}
+	return nil, false
 }
 
 // hash.sha256作为文件名
