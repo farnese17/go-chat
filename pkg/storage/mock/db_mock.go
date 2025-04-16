@@ -47,11 +47,12 @@ func (mr *MockDBMockRecorder) Close() *gomock.Call {
 }
 
 // CreateReference mocks base method.
-func (m *MockDB) CreateReference(f *storage.FileReference) error {
+func (m *MockDB) CreateReference(f *storage.FileReference) (uint, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateReference", f)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateReference indicates an expected call of CreateReference.

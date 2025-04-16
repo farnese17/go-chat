@@ -28,23 +28,23 @@ func VerifyID() gin.HandlerFunc {
 	}
 }
 
-func VerifyAminID() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		from := c.MustGet("from").(uint) // from token,should be valid
-		// if parse error,target will be 0,which will be rejected by ValidateUID
-		to, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-		if to < 1001 || to > 99999 || from == uint(to) {
-			c.JSON(http.StatusOK, gin.H{
-				"status":  errorsx.GetStatusCode(errorsx.ErrInvalidParams),
-				"message": errorsx.ErrInvalidParams.Error(),
-			})
-			c.Abort()
-			return
-		}
-		c.Set("to", uint(to))
-		c.Next()
-	}
-}
+// func VerifyAminID() gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		from := c.MustGet("from").(uint) // from token,should be valid
+// 		// if parse error,target will be 0,which will be rejected by ValidateUID
+// 		to, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+// 		if to < 1001 || to > 99999 || from == uint(to) {
+// 			c.JSON(http.StatusOK, gin.H{
+// 				"status":  errorsx.GetStatusCode(errorsx.ErrInvalidParams),
+// 				"message": errorsx.ErrInvalidParams.Error(),
+// 			})
+// 			c.Abort()
+// 			return
+// 		}
+// 		c.Set("to", uint(to))
+// 		c.Next()
+// 	}
+// }
 
 // BanFilter is a middleware that checks if the user is banned.
 func BanFilter() gin.HandlerFunc {

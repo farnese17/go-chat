@@ -98,15 +98,15 @@ func TestUpload(t *testing.T) {
 		files := []*storage.File{{ID: 1, Path: filepath.Join(fileDir, time.Now().Format("20060102"), ext[1:], mockID+ext)}}
 		idGen.EXPECT().NewID().Return(mockID)
 		m.EXPECT().FindFileByHash(gomock.Any()).Return(files, true, nil)
-		m.EXPECT().CreateReference(gomock.Any()).Return(nil)
+		m.EXPECT().CreateReference(gomock.Any()).Return(uint(1), nil)
 
 		file := createTestFile(t, fileDir, filename)
 		defer file.Close()
 		writeTestFile(t, file, content)
 
-		gotFileID, err := ls.Upload(1, file, filename)
+		got, err := ls.Upload(1, file, filename)
 		assert.NoError(t, err)
-		assert.Equal(t, uint(0), gotFileID)
+		assert.Equal(t, uint(1), got)
 	})
 }
 

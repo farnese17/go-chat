@@ -41,6 +41,7 @@ type LocalStorage struct {
 	IDGen  IDGenerator
 }
 
+// option为nil,默认使用sqlite
 func NewLocalStorage(fileDir, logDir string, option Option) (Storage, error) {
 	fileDir = filepath.Clean(fileDir)
 	logger, err := SetupLogger(logDir)
@@ -158,10 +159,12 @@ func (ls *LocalStorage) checkAndCreateReference(uploader uint, hash string, file
 		Name:       filename,
 		UploadedBy: uploader,
 	}
-	if err := ls.DB.CreateReference(fileRef); err != nil {
+	id, err := ls.DB.CreateReference(fileRef)
+	if err != nil {
 		return 0, false, err
 	}
-	return fileRef.ID, true, nil
+
+	return id, true, nil
 }
 
 func (ls *LocalStorage) compareFile(newFile *os.File, oldFilesPath ...*File) (*File, bool) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/farnese17/chat/config"
 	"github.com/farnese17/chat/middleware"
@@ -26,12 +27,21 @@ func SetupUserService(s registry.Service) {
 func SetupFileService(s registry.Service) error {
 	var err error
 	homeDir := os.Getenv("HOME")
-	fs, err = storage.NewLocalStorage(s.Config().FileServer().Path(), homeDir+"/log/storage", &storage.MysqlOption{
-		User:     s.Config().Database().User(),
-		Password: s.Config().Database().Password(),
-		Addr:     s.Config().Database().Host(),
-		Port:     s.Config().Database().Port(),
-		DBName:   s.Config().Database().DBname(),
+	// fs, err = storage.NewLocalStorage(s.Config().FileServer().Path(), homeDir+"/log/storage", &storage.MysqlOption{
+	// 	User:     s.Config().Database().User(),
+	// 	Password: s.Config().Database().Password(),
+	// 	Addr:     s.Config().Database().Host(),
+	// 	Port:     s.Config().Database().Port(),
+	// 	DBName:   s.Config().Database().DBname(),
+	// })
+	// fs, err = storage.NewLocalStorage(s.Config().FileServer().Path(), filepath.Join(homeDir, "data", "chat_test_use", "storage", "log"), &storage.SqliteOption{
+	// 	// Path: filepath.Join(homeDir, "data", "sqlite", "storage.sqlite"),
+	// 	Mode: "memory",
+	// })
+	fs, err = storage.NewLocalStorage(s.Config().FileServer().Path(), filepath.Join(homeDir, "data", "chat_test_use", "storage", "log"), &storage.RedisOption{
+		// Path: filepath.Join(homeDir, "data", "sqlite", "storage.sqlite"),
+		Addr: "127.0.0.1:63790",
+		DB:   15,
 	})
 	return err
 }
