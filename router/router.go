@@ -129,8 +129,8 @@ func SetupManagerRouter(mode string) *gin.Engine {
 	hasWritePermissions.Use(middleware.CheckManagerPermissions(
 		model.MgrWriteAndRead, model.MgrSuperAdministrator))
 	{
-		hasWritePermissions.POST("/ws/start", v1.StartWebsocket)
-		hasWritePermissions.POST("/ws/stop", v1.StopWebsocket)
+		hasWritePermissions.PUT("/ws/start", v1.StartWebsocket)
+		hasWritePermissions.PUT("/ws/stop", v1.StopWebsocket)
 		hasWritePermissions.PUT("/config/set", v1.SetConfig)
 		hasWritePermissions.PUT("/config/save", v1.SaveConfig)
 		hasWritePermissions.PUT("/users/:id/ban/temp", v1.BanUserTemp)
@@ -143,7 +143,7 @@ func SetupManagerRouter(mode string) *gin.Engine {
 	hasSuperPermission := auth.Group("")
 	hasSuperPermission.Use(middleware.CheckManagerPermissions(model.MgrSuperAdministrator))
 	{
-		hasSuperPermission.POST("", v1.CreateAdmin)
+		hasSuperPermission.POST("/admins", v1.CreateAdmin)
 		hasSuperPermission.DELETE("/admins/:id", v1.DeleteAdmin)
 		hasSuperPermission.PUT("/admins/:id/restore", v1.RestoreAdministrator)
 		hasSuperPermission.PUT("/admins/:id/permissions", v1.SetPermission)

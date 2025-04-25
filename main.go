@@ -22,10 +22,10 @@ func main() {
 	go service.Cache().StartFlush()
 	service.Cache().BFM().Start()
 
-	if err := v1.SetupFileService(service); err != nil {
-		fmt.Println(err)
-		return
-	}
+	// if err := v1.SetupFileService(service); err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
 	v1.SetupUserService(service)
 	v1.SetupGroupService(service)
 	v1.SetupFriendService(service)

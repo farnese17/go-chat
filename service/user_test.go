@@ -41,7 +41,8 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	cfg = config.LoadConfig("./config.yaml")
+	cfgPath := os.Getenv("CHAT_CONFIG")
+	cfg = config.LoadConfig(cfgPath)
 	validator.SetupValidator()
 	log = logger.SetupLogger()
 	defer log.Sync()
@@ -50,8 +51,6 @@ func TestMain(m *testing.M) {
 }
 
 func clear(t *testing.T) {
-	os.Remove("./config.yaml")
-	os.RemoveAll("./chat")
 	ctrl.Finish()
 	for {
 		select {
@@ -70,7 +69,6 @@ func setup(t *testing.T) {
 	mockf = mock.NewMockFriendRepository(ctrl)
 	mockg = mock.NewMockGroupRepository(ctrl)
 	mockc = mock.NewMockCache(ctrl)
-
 	hub = mock.NewMockHub()
 	hub.Run()
 
@@ -482,7 +480,3 @@ func TestGetAccountFeild(t *testing.T) {
 		})
 	}
 }
-
-// func BenchmarkRegister(b *testing.B) {
-
-// }

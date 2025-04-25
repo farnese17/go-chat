@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/farnese17/chat/config"
+	"github.com/farnese17/chat/pkg/storage"
 	repo "github.com/farnese17/chat/repository"
 	"github.com/farnese17/chat/utils/logger"
 	"github.com/farnese17/chat/utils/validator"
@@ -28,6 +29,7 @@ type Service interface {
 	Manager() repo.Manager
 	Cache() repo.Cache
 	Hub() websocket.HubInterface
+	Storage() storage.Storage
 
 	SetHub(hub websocket.HubInterface)
 	Shutdown()
@@ -55,6 +57,7 @@ type registry struct {
 	mgrRepo    repo.Manager
 	cache      repo.Cache
 	hub        websocket.HubInterface
+	storage    storage.Storage
 
 	config config.Config
 }
@@ -76,6 +79,16 @@ func initRegistry() *registry {
 	friendRepo := repo.NewSQLFriendRepository(db)
 	groupRepo := repo.NewSQLGroupRepository(db)
 	mgrRepo := repo.NewSQLManagerRepository(db)
+	fs, err := storage.NewLocalStorage(cfg.FileServer().Path(), cfg.FileServer().LogPath(), &storage.MysqlOption{
+		User:     cfg.Database().User(),
+		Password: cfg.Database().Password(),
+		Addr:     cfg.Database().Host(),
+		Port:     cfg.Database().Port(),
+		DBName:   cfg.Database().DBname(),
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	reg := &registry{
 		mu:         sync.RWMutex{},
@@ -88,6 +101,7 @@ func initRegistry() *registry {
 		groupRepo:  groupRepo,
 		mgrRepo:    mgrRepo,
 		config:     cfg,
+		storage:    fs,
 	}
 	cache := repo.NewRedisCache(redisClient, reg)
 	reg.cache = cache
@@ -130,7 +144,12 @@ func (r *registry) SetHub(hub websocket.HubInterface) {
 	r.hub = hub
 }
 
+func (r *registry) Storage() storage.Storage {
+	return r.storage
+}
+
 func (r *registry) Shutdown() {
+	r.storage.Close()
 	r.sqlDB.Close()
 	r.cache.Stop()
 	r.rc.Close()

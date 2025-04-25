@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 	"github.com/farnese17/chat/router"
 	m "github.com/farnese17/chat/service/model"
 	"github.com/farnese17/chat/utils"
+	"github.com/farnese17/chat/utils/errorsx"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,6 +28,7 @@ import (
 var (
 	s                 registry.Service
 	route             *gin.Engine
+	managerRouter     *gin.Engine
 	testData          []*m.User
 	testDataCount     = 50
 	wg                = &sync.WaitGroup{}
@@ -40,8 +43,10 @@ func TestMain(m *testing.M) {
 	v1.SetupUserService(s)
 	v1.SetupGroupService(s)
 	v1.SetupFriendService(s)
+	v1.SetupManagerService(s)
 	go s.Cache().StartFlush()
-	route = router.SetupRouter("debug")
+	route = router.SetupRouter("release")
+	managerRouter = router.SetupManagerRouter("release")
 
 	clear()
 
@@ -69,6 +74,8 @@ func clear() {
 	repo.ExecSql("ALTER TABLE `user` AUTO_INCREMENT = 100001")
 	repo.ExecSql("ALTER TABLE `group` AUTO_INCREMENT = 1000000001")
 	repo.ExecSql("ALTER TABLE group_person AUTO_INCREMENT = 1")
+	repo.ExecSql("DELETE FROM `manager`")
+	repo.ExecSql("ALTER TABLE `manager` AUTO_INCREMENT = 1001")
 }
 
 func genTestData() []*m.User {
@@ -95,6 +102,7 @@ func TestRegister(t *testing.T) {
 	setupTestData()
 	tests := genTestData()
 
+	url := "/api/v1/users"
 	wg := &sync.WaitGroup{}
 	for i, tt := range tests {
 		tt.Password = "aaaaaa"
@@ -103,12 +111,7 @@ func TestRegister(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("register %d", i), func(t *testing.T) {
 				body, _ := json.Marshal(tt)
-				req := httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
-				assert.Nil(t, resp["data"])
+				testNoError(t, route, url, "POST", 0, bytes.NewBuffer(body))
 			})
 		}(tt)
 	}
@@ -117,17 +120,14 @@ func TestRegister(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	setupTestData()
+
+	url := "/api/v1/login"
 	wg := &sync.WaitGroup{}
 	subTest := func(idx int, account string) {
 		defer wg.Done()
 		t.Run(fmt.Sprintf("login %s", account), func(t *testing.T) {
 			body, _ := json.Marshal(map[string]any{"account": account, "password": "aaaaaa"})
-			req := httptest.NewRequest("POST", "/api/v1/login", bytes.NewBuffer(body))
-			w := httptest.NewRecorder()
-
-			route.ServeHTTP(w, req)
-			resp := equalHttpResp(t, w)
-
+			resp := testNoError(t, route, url, "POST", 0, bytes.NewBuffer(body))
 			expected := testData[idx]
 			equalStruct(t, expected, resp["data"].(map[string]any))
 			assert.NotEmpty(t, resp["token"].(string))
@@ -145,20 +145,14 @@ func TestLogin(t *testing.T) {
 
 func TestSearchUser(t *testing.T) {
 	setupTestData()
+
+	url := "/api/v1/users/search"
 	wg := &sync.WaitGroup{}
 	subTest := func(idx int, account string) {
 		defer wg.Done()
 		t.Run(fmt.Sprintf("search user %s", account), func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/api/v1/users/search", nil)
-			addToken(100001, req)
-			q := req.URL.Query()
-			q.Add("account", account)
-			req.URL.RawQuery = q.Encode()
-			w := httptest.NewRecorder()
-
-			route.ServeHTTP(w, req)
-
-			resp := equalHttpResp(t, w)
+			resp := testNoError(t, route, url, "GET", 10001, nil, map[string]string{
+				"account": account})
 			expected := testData[idx]
 			equalStruct(t, expected, resp["data"].(map[string]any))
 		})
@@ -176,6 +170,8 @@ func TestSearchUser(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	setupTestData()
+
+	url := "/api/v1/users"
 	wg := &sync.WaitGroup{}
 	for range testDataCount {
 		wg.Add(1)
@@ -184,12 +180,7 @@ func TestGetUser(t *testing.T) {
 			idx := rand.IntN(testDataCount)
 			tt := testData[idx]
 			t.Run(fmt.Sprintf("get user %d", tt.ID), func(t *testing.T) {
-				req := httptest.NewRequest("GET", "/api/v1/users", nil)
-				addToken(tt.ID, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "GET", tt.ID, nil)
 				expected := testData[idx]
 				equalStruct(t, expected, resp["data"].(map[string]any))
 			})
@@ -200,17 +191,14 @@ func TestGetUser(t *testing.T) {
 
 func TestUpdateUser(t *testing.T) {
 	setupTestData()
+
+	url := "/api/v1/users"
 	wg := &sync.WaitGroup{}
 	subTest := func(tt *m.User, value, field string) {
 		defer wg.Done()
 		t.Run(fmt.Sprintf("update user %s", value), func(t *testing.T) {
 			body, _ := json.Marshal(map[string]any{"value": value, "field": field})
-			req := httptest.NewRequest("PUT", "/api/v1/users", bytes.NewBuffer(body))
-			addToken(tt.ID, req)
-			w := httptest.NewRecorder()
-			route.ServeHTTP(w, req)
-
-			resp := equalHttpResp(t, w)
+			resp := testNoError(t, route, url, "PUT", tt.ID, bytes.NewBuffer(body))
 			assert.Nil(t, resp["data"])
 		})
 	}
@@ -229,6 +217,8 @@ func TestUpdateUser(t *testing.T) {
 
 func TestUpdatepassword(t *testing.T) {
 	setupTestData()
+
+	url := "/api/v1/users/password"
 	wg := &sync.WaitGroup{}
 	for range testDataCount {
 		wg.Add(1)
@@ -238,12 +228,7 @@ func TestUpdatepassword(t *testing.T) {
 			tt := testData[idx]
 			t.Run(fmt.Sprintf("update password %d", tt.ID), func(t *testing.T) {
 				body, _ := json.Marshal(map[string]string{"old": "aaaaaa", "new": "bbbbbb", "confirm": "bbbbbb"})
-				req := httptest.NewRequest("PUT", "/api/v1/users/password", bytes.NewBuffer(body))
-				addToken(tt.ID, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "PUT", tt.ID, bytes.NewBuffer(body))
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -253,32 +238,21 @@ func TestUpdatepassword(t *testing.T) {
 
 func TestDeleteUser(t *testing.T) {
 	setupTestData()
-	tests := genTestData()
+
+	url := "/api/v1/users"
 	wg := &sync.WaitGroup{}
-	for _, tt := range tests {
+	for _, tt := range testData {
 		wg.Add(1)
 		go func(tt *m.User) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("delete user %d", tt.ID), func(t *testing.T) {
-				req := httptest.NewRequest("DELETE", "/api/v1/users", nil)
-				addToken(tt.ID, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "DELETE", tt.ID, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}(tt)
 	}
 	wg.Wait()
 }
-
-// func newRequestAndRun(method string, url string, body *bytes.Buffer) (*http.Request, *httptest.ResponseRecorder) {
-//  req := httptest.NewRequest(method, url, body)
-//  w := httptest.NewRecorder()
-//  route.ServeHTTP(w, req)
-//  return req, w
-// }
 
 func equalHttpResp(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -289,7 +263,7 @@ func equalHttpResp(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 	return resp
 }
 
-func addToken(uid uint, req *http.Request) {
+func addToken(uid uint, req *http.Request) string {
 	token, err := s.Cache().GetToken(uid)
 	if err != nil || token == "" {
 		token, _ = middleware.GenerateToken(uid)
@@ -297,6 +271,7 @@ func addToken(uid uint, req *http.Request) {
 		s.Cache().Flush()
 	}
 	req.Header.Add("Authorization", "Bearer "+token)
+	return token
 }
 
 func equalStruct(t *testing.T, expected any, resp map[string]any, noEqual ...string) {
@@ -310,4 +285,42 @@ func equalStruct(t *testing.T, expected any, resp map[string]any, noEqual ...str
 		}
 		assert.Equalf(t, m[k], v, fmt.Sprintf("%s: %v not equal to %v", k, m[k], v))
 	}
+}
+
+func equalError(t *testing.T, expected error, w *httptest.ResponseRecorder) {
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, errorsx.GetStatusCode(expected), int(resp["status"].(float64)))
+	assert.Equal(t, expected.Error(), resp["message"].(string))
+	assert.Nil(t, resp["data"])
+}
+
+func testHasError(t *testing.T, router *gin.Engine, url, method string, handler uint, body io.Reader, expected error, query ...map[string]string) {
+	w := sendRequest(router, url, method, handler, body, query...)
+	equalError(t, expected, w)
+}
+
+func testNoError(t *testing.T, router *gin.Engine, url, method string, handler uint, body io.Reader, query ...map[string]string) map[string]any {
+	w := sendRequest(router, url, method, handler, body, query...)
+	resp := equalHttpResp(t, w)
+	return resp
+}
+
+func sendRequest(router *gin.Engine, url, method string, handler uint, body io.Reader, query ...map[string]string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, url, body)
+	if handler != 0 {
+		addToken(handler, req)
+	}
+	if len(query) > 0 {
+		q := req.URL.Query()
+		for k, v := range query[0] {
+			q.Add(k, v)
+		}
+		req.URL.RawQuery = q.Encode()
+	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
 }

@@ -58,8 +58,9 @@ func LoadConfig(path string) Config {
 			RetryDelay_:         time.Millisecond * 10,
 		},
 		FileServer_: &FileServer_{
-			Addr_: "http://localhost:3000/",
-			Path_: "./chat/files/",
+			Addr_:    "http://localhost:3000/",
+			Path_:    "./chat/storage/files/",
+			LogPath_: "./chat/storage/storage.log",
 		},
 	}
 
@@ -90,6 +91,7 @@ func LoadConfig(path string) Config {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		fmt.Println("parse the config file failed: ", err)
 	}
+	cfg.Common_.Path_ = path
 	config = cfg
 	return cfg
 }
@@ -136,7 +138,7 @@ func (cfg *config_) Get() map[string]any {
 			}
 
 			if val, ok := fieldValue.Interface().(time.Duration); ok {
-				m[field] = val.Seconds()
+				m[field] = val.String()
 			} else {
 				m[field] = fieldValue.Interface()
 			}
@@ -221,7 +223,7 @@ func (cfg *config_) SetCommon(k, v string) error {
 		}
 		cfg.Common_.TokenValidPeriod_ = t
 	default:
-		return errorsx.ErrInvalidParams
+		return errorsx.ErrNoSettingOption
 	}
 	return nil
 }
@@ -231,7 +233,7 @@ func (cfg *config_) SetCache(k, v string) error {
 	case "max_groups":
 		val, _ := strconv.Atoi(v)
 		if val < 1 {
-			return errors.New("max_groups的值必须大于1")
+			return errors.New("max_groups的值必须大于0")
 		}
 		cfg.Cache_.MaxGroups_ = val
 	case "auto_flush_interval":
@@ -253,7 +255,7 @@ func (cfg *config_) SetCache(k, v string) error {
 		}
 		cfg.Cache_.RetryDelay_ = t
 	default:
-		return errorsx.ErrInvalidParams
+		return errorsx.ErrNoSettingOption
 	}
 	return nil
 }
@@ -381,13 +383,15 @@ func (cfg *Cache_) RetryDelay(n int) time.Duration {
 }
 
 type FileServer_ struct {
-	Addr_ string `yaml:"addr" json:"addr"`
-	Path_ string `yaml:"path" json:"path"`
+	Addr_    string `yaml:"addr" json:"addr"`
+	Path_    string `yaml:"path" json:"path"`
+	LogPath_ string `yaml:"log_path"`
 }
 
 type FileServer interface {
 	Addr() string
 	Path() string
+	LogPath() string
 }
 
 func (fs *FileServer_) Addr() string {
@@ -396,6 +400,10 @@ func (fs *FileServer_) Addr() string {
 
 func (fs *FileServer_) Path() string {
 	return fs.Path_
+}
+
+func (fs *FileServer_) LogPath() string {
+	return fs.LogPath_
 }
 
 func (cfg *config_) convertToTime(s string) (time.Duration, error) {

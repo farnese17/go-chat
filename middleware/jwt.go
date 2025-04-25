@@ -79,7 +79,6 @@ func VerifyTokenInWhitelist(status int) gin.HandlerFunc {
 		token := c.Request.Header.Get("Authorization")
 		pre := "Bearer "
 		token = token[len(pre):]
-
 		id := c.MustGet("from").(uint)
 		val, err := cache.GetToken(id)
 		if err != nil {

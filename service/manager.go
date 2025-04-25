@@ -26,7 +26,7 @@ func (mgr *Manager) CreateAdmin(data *m.Manager) (uint, error) {
 	}
 	data.Password = hashPW
 	if err := mgr.service.Manager().Create(data); err != nil {
-		return 0, nil
+		return 0, err
 	}
 	return data.ID, nil
 }
@@ -97,9 +97,9 @@ func (mgr *Manager) Ban(id string, level int, days int) error {
 		if level == m.BanLevelPermanent {
 			mgr.service.Cache().BFM().BanUser(uint(uid))
 		}
-		if level == m.BanLevelMuted {
-			mgr.service.Cache().BFM().AddMute(uint(uid), expireAt)
-		}
+	}
+	if level == m.BanLevelMuted {
+		mgr.service.Cache().BFM().AddMute(uint(uid), expireAt)
 	}
 
 	return nil
@@ -146,6 +146,9 @@ func (mgr *Manager) AdminList(cursor *m.Cursor) (map[string]any, error) {
 	if err != nil {
 		return res, err
 	}
+	for _, admin := range admins {
+		admin.Password = ""
+	}
 	res["data"] = admins
 	return res, nil
 }
@@ -163,12 +166,10 @@ func (mgr *Manager) Login(id uint, password string) error {
 	if err := validator.ValidatePassword(password); err != nil {
 		return err
 	}
-
 	admin, err := mgr.service.Manager().Get(id)
 	if err != nil {
 		return err
 	}
-
 	if admin.Deleted_At != 0 {
 		return errorsx.ErrUserNotExist
 	}

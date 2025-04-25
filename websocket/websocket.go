@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/farnese17/chat/utils/errorsx"
-	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
@@ -37,11 +36,12 @@ func UpgradeToWS(s Service, id uint, w http.ResponseWriter, r *http.Request) {
 	go client.Write()
 }
 
-func StopWebsocket(s Service, c *gin.Context) error {
+func StopWebsocket(s Service) error {
 	if wsIsClosed(s) {
 		return errorsx.ErrServerClosed
 	}
 	s.Hub().Stop()
+	s.SetHub(nil)
 	return nil
 }
 

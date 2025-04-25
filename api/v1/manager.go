@@ -52,10 +52,9 @@ func StopWebsocket(c *gin.Context) {
 		ginx.HandleError(c, errorsx.ErrServerClosed)
 		return
 	}
-	s.Hub().Stop()
-	s.SetHub(nil)
+
 	ginx.NoDataResponse(c, func() error {
-		err := websocket.StopWebsocket(s, c)
+		err := websocket.StopWebsocket(s)
 		if err != nil {
 			s.Logger().Error("Failed to stop websocket goroutine", zap.Error(err), zap.Uint("handler", ginx.GetUserID(c)))
 		} else {
@@ -94,6 +93,10 @@ func SetConfig(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&body); err != nil {
 		ginx.HandleError(c, err)
+		return
+	}
+	if body.Value == "" {
+		ginx.HandleInvalidParam(c)
 		return
 	}
 	ginx.NoDataResponse(c, func() error {
@@ -247,7 +250,7 @@ func SetPermission(c *gin.Context) {
 	handler := ginx.GetUserID(c)
 	id := ginx.ManagerGetID(c)
 	if handler == id {
-		ginx.HandleError(c, errorsx.ErrNil)
+		ginx.HandleError(c, errorsx.ErrPermissiondenied)
 		return
 	}
 	permission, _ := strconv.Atoi(c.Query("permission"))

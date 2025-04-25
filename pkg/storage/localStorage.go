@@ -22,6 +22,7 @@ type Storage interface {
 	Upload(uploader uint, file multipart.File, filename string) (uint, error)
 	Download(id string) (*File, error)
 	Delete(uid uint, fileID string) error
+	Close()
 }
 
 type IDGenerator interface {
@@ -126,6 +127,10 @@ func (ls *LocalStorage) Download(id string) (*File, error) {
 
 func (ls *LocalStorage) Delete(uid uint, fileID string) error {
 	return ls.DB.Delete(uid, fileID)
+}
+
+func (ls *LocalStorage) Close() {
+	ls.DB.Close()
 }
 
 func (ls *LocalStorage) addExt(name, ext string) string {

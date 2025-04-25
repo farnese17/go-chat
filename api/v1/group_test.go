@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
-	"net/http/httptest"
 	"reflect"
 	"strconv"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/farnese17/chat/repository"
+	"github.com/farnese17/chat/service/model"
 	m "github.com/farnese17/chat/service/model"
 	"github.com/farnese17/chat/utils/validator"
 	ws "github.com/farnese17/chat/websocket"
@@ -57,7 +57,9 @@ func clearGroupData() {
 
 func TestCreateGroup(t *testing.T) {
 	setupTestData()
+
 	tests := genTestGroupData()
+	url := "/api/v1/groups"
 	wg := &sync.WaitGroup{}
 	for i, tt := range tests {
 		wg.Add(1)
@@ -65,16 +67,11 @@ func TestCreateGroup(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("create group %s", tt.Name), func(t *testing.T) {
 				body, _ := json.Marshal(tt)
-				req := httptest.NewRequest("POST", "/api/v1/groups", bytes.NewBuffer(body))
 				var uid uint
 				if i < len(testData) {
 					uid = testData[i].ID
 				}
-				addToken(uid, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "POST", uid, bytes.NewBuffer(body), nil)
 				assert.NotEmpty(t, resp["data"])
 				jsonData, _ := json.Marshal(resp["data"])
 				var g *m.Group
@@ -106,12 +103,7 @@ func TestSearchByGID(t *testing.T) {
 			tt := testGroupData[idx]
 			t.Run(fmt.Sprintf("search group by gid %d", tt.GID), func(t *testing.T) {
 				url := fmt.Sprintf("/api/v1/groups/%d", tt.GID)
-				req := httptest.NewRequest("GET", url, nil)
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "GET", tt.Owner, nil)
 				jsonData, _ := json.Marshal(resp["data"])
 				var g *m.Group
 				json.Unmarshal(jsonData, &g)
@@ -128,6 +120,7 @@ func TestSearchGroupByName(t *testing.T) {
 	setupTestData()
 	setupTestGroupData()
 
+	url := "/api/v1/groups/search"
 	wg := &sync.WaitGroup{}
 	for i := range testDataCount {
 		wg.Add(1)
@@ -135,19 +128,10 @@ func TestSearchGroupByName(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("search group by name %d", i), func(t *testing.T) {
 				body, _ := json.Marshal(&m.Cursor{PageSize: 1, HasMore: true})
-				req := httptest.NewRequest("GET", "/api/v1/groups/search", bytes.NewBuffer(body))
-				addToken(testGroupData[0].Owner, req)
-				q := req.URL.Query()
-				q.Add("name", "group")
-				req.URL.RawQuery = q.Encode()
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
-				cursor := resp["data"].(map[string]any)["cursor"].(map[string]any)
-				assert.Equal(t, 1, int(cursor["page_size"].(float64)))
-				assert.Equal(t, true, cursor["has_more"].(bool))
-				assert.Equal(t, uint(1e9)+1, uint(cursor["last_id"].(float64)))
+				resp := testNoError(t, route, url, "GET", testGroupData[0].Owner, bytes.NewBuffer(body), map[string]string{
+					"name": "group"})
+				cursor := &model.Cursor{LastID: uint(1e9 + 1), PageSize: 1, HasMore: true}
+				equalStruct(t, cursor, resp["data"].(map[string]any)["cursor"].(map[string]any))
 				var g []*m.Group
 				jsong, _ := json.Marshal(resp["data"].(map[string]any)["groups"])
 				json.Unmarshal(jsong, &g)
@@ -164,7 +148,6 @@ func TestSearchGroupByName_Cursor(t *testing.T) {
 	setupTestData()
 	setupTestGroupData()
 
-	wg := &sync.WaitGroup{}
 	tests := []struct {
 		cursor         m.Cursor
 		expected       []*m.Group
@@ -176,25 +159,17 @@ func TestSearchGroupByName_Cursor(t *testing.T) {
 		{m.Cursor{PageSize: 15, LastID: uint(int(1e9)+testDataCount) + 1, HasMore: true}, []*m.Group{}, m.Cursor{PageSize: 15, LastID: uint(int(1e9)+testDataCount) + 1, HasMore: false}},
 	}
 
+	url := "/api/v1/groups/search"
+	wg := &sync.WaitGroup{}
 	for _, tt := range tests {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("use cursor search group by name %v", tt.cursor), func(t *testing.T) {
 				body, _ := json.Marshal(tt.cursor)
-				req := httptest.NewRequest("GET", "/api/v1/groups/search", bytes.NewBuffer(body))
-				addToken(testData[0].ID, req)
-				q := req.URL.Query()
-				q.Add("name", "group")
-				req.URL.RawQuery = q.Encode()
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
-				cursor := resp["data"].(map[string]any)["cursor"].(map[string]any)
-				assert.Equal(t, tt.expectedCursor.PageSize, int(cursor["page_size"].(float64)))
-				assert.Equal(t, tt.expectedCursor.HasMore, cursor["has_more"].(bool))
-				assert.Equal(t, tt.expectedCursor.LastID, uint(cursor["last_id"].(float64)))
+				resp := testNoError(t, route, url, "GET", testData[0].ID, bytes.NewBuffer(body), map[string]string{
+					"name": "group"})
+				equalStruct(t, tt.expectedCursor, resp["data"].(map[string]any)["cursor"].(map[string]any))
 				var g []*m.Group
 				jsong, _ := json.Marshal(resp["data"].(map[string]any)["groups"])
 				json.Unmarshal(jsong, &g)
@@ -224,24 +199,16 @@ func TestInvite(t *testing.T) {
 			idx := rand.IntN(testDataCount-1) + 1
 			tt := testData[idx]
 			t.Run(fmt.Sprintf("invite user join group %d", tt.ID), func(t *testing.T) {
-				req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/groups/%d/invitations/%d", gid, tt.ID), nil)
-				addToken(from, req)
-
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
-				jsonData, _ := json.Marshal(resp["data"])
-				var respMsg *ws.ChatMsg
-				json.Unmarshal(jsonData, &respMsg)
+				url := fmt.Sprintf("/api/v1/groups/%d/invitations/%d", gid, tt.ID)
+				resp := testNoError(t, route, url, "POST", from, nil)
 				msg := &ws.ChatMsg{
 					Type: ws.System,
 					From: testData[0].ID,
 					To:   tt.ID,
-					Time: respMsg.Time,
 					Body: fmt.Sprintf("邀请 %s 加入群聊 group0", tt.Username),
 				}
-				assert.Equal(t, msg, respMsg)
+				equalStruct(t, msg, resp["data"].(map[string]any), "time")
+				assert.NotEmpty(t, resp["data"].(map[string]any)["time"])
 			})
 		}()
 	}
@@ -272,11 +239,8 @@ func TestAcceptInvite(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("accept invite %d", msg.To), func(t *testing.T) {
 				body, _ := json.Marshal(msg)
-				req := httptest.NewRequest("PUT", fmt.Sprintf("/api/v1/groups/%v/invitations/accept", msg.Data), bytes.NewBuffer(body))
-				addToken(msg.To, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%v/invitations/accept", msg.Data)
+				resp := testNoError(t, route, url, "PUT", msg.To, bytes.NewBuffer(body))
 				assert.Nil(t, resp["data"])
 			})
 		}(msg)
@@ -301,13 +265,8 @@ func TestApply(t *testing.T) {
 			uid := uint(1e5) + uint(i+1)
 			gid := int(1e9) + idx
 			t.Run(fmt.Sprintf("%d apply join group %d", uid, gid), func(t *testing.T) {
-				req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/groups/%d/applications", gid), nil)
-				addToken(uid, req)
-
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/applications", gid)
+				resp := testNoError(t, route, url, "POST", uid, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -341,12 +300,8 @@ func TestAcceptApply(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("accept join group %d", tt.GID), func(t *testing.T) {
-				req := httptest.NewRequest("PUT", fmt.Sprintf("/api/v1/groups/%d/applications/%d/accept", tt.GID, testGroupData[0].Owner), nil)
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/applications/%d/accept", tt.GID, testGroupData[0].Owner)
+				resp := testNoError(t, route, url, "PUT", tt.Owner, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -366,13 +321,8 @@ func TestRejectApply(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("reject join group %d", tt.GID), func(t *testing.T) {
-				req := httptest.NewRequest("PUT", fmt.Sprintf("/api/v1/groups/%d/applications/%d/reject", tt.GID, testGroupData[0].Owner), nil)
-				addToken(tt.Owner, req)
-
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/applications/%d/reject", tt.GID, testGroupData[0].Owner)
+				resp := testNoError(t, route, url, "PUT", tt.Owner, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -393,12 +343,8 @@ func TestGetMember(t *testing.T) {
 			idx := rand.IntN(testDataCount)
 			tt := testGroupData[idx]
 			t.Run(fmt.Sprintf("get member %d", tt.GID), func(t *testing.T) {
-				req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/groups/%d/members/%d", tt.GID, tt.Owner), nil)
-				addToken(tt.Owner, req)
-
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/members/%d", tt.GID, tt.Owner)
+				resp := testNoError(t, route, url, "GET", tt.Owner, nil)
 				expected := testData[idx]
 				data := resp["data"].(map[string]any)
 				equalStruct(t, expected, data, "role", "created_at")
@@ -424,12 +370,7 @@ func TestGetMembers(t *testing.T) {
 			tt := testGroupData[idx]
 			t.Run(fmt.Sprintf("get group members %d", tt.GID), func(t *testing.T) {
 				url := fmt.Sprintf("/api/v1/groups/%d/members", tt.GID)
-				req := httptest.NewRequest("GET", url, nil)
-				addToken(uint(1e5+1), req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "GET", uint(1e5+1), nil)
 				var members []*m.MemberInfo
 				jsonData, _ := json.Marshal(resp["data"])
 				json.Unmarshal(jsonData, &members)
@@ -460,12 +401,7 @@ func TestDeleteGroup(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("delete group %d", tt.GID), func(t *testing.T) {
 				url := fmt.Sprintf("/api/v1/groups/%d", tt.GID)
-				req := httptest.NewRequest("DELETE", url, nil)
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "DELETE", tt.Owner, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -485,15 +421,9 @@ func TestUpdateGroupInformation(t *testing.T) {
 		idx := rand.IntN(testDataCount)
 		tt := testGroupData[idx]
 		t.Run(fmt.Sprintf("update group information %d", tt.GID), func(t *testing.T) {
-			req := httptest.NewRequest("PUT", fmt.Sprintf("/api/v1/groups/%d", tt.GID), nil)
-			addToken(tt.Owner, req)
-			q := req.URL.Query()
-			q.Add("field", column)
-			q.Add("value", value)
-			req.URL.RawQuery = q.Encode()
-			w := httptest.NewRecorder()
-			route.ServeHTTP(w, req)
-			resp := equalHttpResp(t, w)
+			url := fmt.Sprintf("/api/v1/groups/%d", tt.GID)
+			resp := testNoError(t, route, url, "PUT", tt.Owner, nil, map[string]string{
+				"field": column, "value": value})
 			assert.Nil(t, resp["data"])
 		})
 	}
@@ -517,12 +447,8 @@ func TestHandOverOwner(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("hand over owner %d", tt.GID), func(t *testing.T) {
-				req := httptest.NewRequest("PUT", fmt.Sprintf("/api/v1/groups/%d/owner/%d", tt.GID, testGroupData[0].Owner), nil)
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/owner/%d", tt.GID, testGroupData[0].Owner)
+				resp := testNoError(t, route, url, "PUT", tt.Owner, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -541,14 +467,9 @@ func TestModifyAdmin(t *testing.T) {
 	subTest := func(tt *m.Group, status int) {
 		defer wg.Done()
 		t.Run(fmt.Sprintf("modify admin %d", tt.GID), func(t *testing.T) {
-			req := httptest.NewRequest("PUT", fmt.Sprintf("/api/v1/groups/%d/admins/%d", tt.GID, testGroupData[0].Owner), nil)
-			addToken(tt.Owner, req)
-			q := req.URL.Query()
-			q.Add("role", strconv.FormatInt(int64(status), 10))
-			req.URL.RawQuery = q.Encode()
-			w := httptest.NewRecorder()
-			route.ServeHTTP(w, req)
-			resp := equalHttpResp(t, w)
+			url := fmt.Sprintf("/api/v1/groups/%d/admins/%d", tt.GID, testGroupData[0].Owner)
+			resp := testNoError(t, route, url, "PUT", tt.Owner, nil, map[string]string{
+				"role": strconv.FormatInt(int64(status), 10)})
 			assert.Nil(t, resp["data"])
 		})
 	}
@@ -577,11 +498,7 @@ func TestAdminResgin(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("admin resign%d", tt.GID), func(t *testing.T) {
 				url := fmt.Sprintf("/api/v1/groups/%d/admins/me/resign", tt.GID)
-				req := httptest.NewRequest("PUT", url, nil)
-				addToken(testData[0].ID, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "PUT", testData[0].ID, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -602,11 +519,7 @@ func TestLeaveGroup(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("leave group %d", tt.GID), func(t *testing.T) {
 				url := fmt.Sprintf("/api/v1/groups/%d/members/me", tt.GID)
-				req := httptest.NewRequest("DELETE", url, nil)
-				addToken(testGroupData[0].Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "DELETE", testGroupData[0].Owner, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -626,11 +539,8 @@ func TestKick(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("kick member %d", tt.GID), func(t *testing.T) {
-				req := httptest.NewRequest("DELETE", fmt.Sprintf("/api/v1/groups/%d/members/%d", tt.GID, testGroupData[0].Owner), nil)
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/members/%d", tt.GID, testGroupData[0].Owner)
+				resp := testNoError(t, route, url, "DELETE", tt.Owner, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -650,11 +560,8 @@ func TestCreateAnnounce(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("craete announce %d", tt.GID), func(t *testing.T) {
 				body, _ := json.Marshal(m.GroupAnnouncement{GroupID: tt.GID, Content: "this is an announce"})
-				req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/groups/%d/announces", tt.GID), bytes.NewBuffer(body))
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/announces", tt.GID)
+				resp := testNoError(t, route, url, "POST", tt.Owner, bytes.NewBuffer(body))
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -693,15 +600,10 @@ func TestViewAnnounce(t *testing.T) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("view announce %d", tt.GID), func(t *testing.T) {
 				body, _ := json.Marshal(m.Cursor{PageSize: 15, LastID: 0, HasMore: true})
-				req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/groups/%d/announces", tt.GID), bytes.NewBuffer(body))
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
-				cursor := resp["data"].(map[string]any)["cursor"].(map[string]any)
-				assert.Equal(t, float64(15), cursor["page_size"].(float64))
-				assert.Equal(t, float64(math.MaxUint64), cursor["last_id"].(float64))
-				assert.Equal(t, false, cursor["has_more"].(bool))
+				url := fmt.Sprintf("/api/v1/groups/%d/announces", tt.GID)
+				resp := testNoError(t, route, url, "GET", tt.Owner, bytes.NewBuffer(body))
+				cursor := &model.Cursor{LastID: math.MaxUint64, PageSize: 15}
+				equalStruct(t, cursor, resp["data"].(map[string]any)["cursor"].(map[string]any))
 
 				base := int(tt.GID - testGroupData[0].GID)
 				expected := make([]*m.GroupAnnouncement, len(testAnnounceData)/testDataCount)
@@ -747,11 +649,8 @@ func TestViewLatestAnnounce(t *testing.T) {
 			idx := rand.IntN(testDataCount)
 			tt := testGroupData[idx]
 			t.Run(fmt.Sprintf("view latest announce %d", tt.GID), func(t *testing.T) {
-				req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/groups/%d/announces/latest", tt.GID), nil)
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/announces/latest", tt.GID)
+				resp := testNoError(t, route, url, "GET", tt.Owner, nil)
 
 				expected := testAnnounceData[len(testAnnounceData)+idx-testDataCount]
 				equalStruct(t, expected, resp["data"].(map[string]any), "created_by")
@@ -774,11 +673,8 @@ func TestDeleteAnnounce(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("delete announce %d", tt.GroupID), func(t *testing.T) {
-				req := httptest.NewRequest("DELETE", fmt.Sprintf("/api/v1/groups/%d/announces/%d", tt.GroupID, tt.ID), nil)
-				addToken(tt.CreatedBy, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-				resp := equalHttpResp(t, w)
+				url := fmt.Sprintf("/api/v1/groups/%d/announces/%d", tt.GroupID, tt.ID)
+				resp := testNoError(t, route, url, "DELETE", tt.CreatedBy, nil)
 				assert.Nil(t, resp["data"])
 			})
 		}()
@@ -799,18 +695,14 @@ func TestGetGroupList(t *testing.T) {
 		}
 	}
 
+	url := "/api/v1/groups"
 	wg := &sync.WaitGroup{}
 	for i, tt := range testGroupData[:len(testGroupData)-1] {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("get group list %d", tt.Owner), func(t *testing.T) {
-				req := httptest.NewRequest("GET", "/api/v1/groups", nil)
-				addToken(tt.Owner, req)
-				w := httptest.NewRecorder()
-				route.ServeHTTP(w, req)
-
-				resp := equalHttpResp(t, w)
+				resp := testNoError(t, route, url, "GET", tt.Owner, nil)
 				expected := []m.SummaryGroupInfo{
 					{GID: tt.GID, GroupName: tt.Name},
 					{GID: testGroupData[i+1].GID, GroupName: testGroupData[i+1].Name},

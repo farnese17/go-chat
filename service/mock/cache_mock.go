@@ -62,10 +62,10 @@ func (mr *MockCacheMockRecorder) AddMemberIfKeyExist(gid, member, role interface
 }
 
 // BFM mocks base method.
-func (m *MockCache) BFM() *repository.BloomFilterManager {
+func (m *MockCache) BFM() repository.BloomFilter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BFM")
-	ret0, _ := ret[0].(*repository.BloomFilterManager)
+	ret0, _ := ret[0].(repository.BloomFilter)
 	return ret0
 }
 
@@ -457,6 +457,117 @@ func (m *MockBlockCache) RemoveBlockMessage(msg any) {
 func (mr *MockBlockCacheMockRecorder) RemoveBlockMessage(msg interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBlockMessage", reflect.TypeOf((*MockBlockCache)(nil).RemoveBlockMessage), msg)
+}
+
+// MockBloomFilter is a mock of BloomFilter interface.
+type MockBloomFilter struct {
+	ctrl     *gomock.Controller
+	recorder *MockBloomFilterMockRecorder
+}
+
+// MockBloomFilterMockRecorder is the mock recorder for MockBloomFilter.
+type MockBloomFilterMockRecorder struct {
+	mock *MockBloomFilter
+}
+
+// NewMockBloomFilter creates a new mock instance.
+func NewMockBloomFilter(ctrl *gomock.Controller) *MockBloomFilter {
+	mock := &MockBloomFilter{ctrl: ctrl}
+	mock.recorder = &MockBloomFilterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockBloomFilter) EXPECT() *MockBloomFilterMockRecorder {
+	return m.recorder
+}
+
+// AddMute mocks base method.
+func (m *MockBloomFilter) AddMute(id uint, expireAt int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddMute", id, expireAt)
+}
+
+// AddMute indicates an expected call of AddMute.
+func (mr *MockBloomFilterMockRecorder) AddMute(id, expireAt interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddMute", reflect.TypeOf((*MockBloomFilter)(nil).AddMute), id, expireAt)
+}
+
+// BanUser mocks base method.
+func (m *MockBloomFilter) BanUser(id uint) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "BanUser", id)
+}
+
+// BanUser indicates an expected call of BanUser.
+func (mr *MockBloomFilterMockRecorder) BanUser(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BanUser", reflect.TypeOf((*MockBloomFilter)(nil).BanUser), id)
+}
+
+// IsBanned mocks base method.
+func (m *MockBloomFilter) IsBanned(id uint) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBanned", id)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBanned indicates an expected call of IsBanned.
+func (mr *MockBloomFilterMockRecorder) IsBanned(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBanned", reflect.TypeOf((*MockBloomFilter)(nil).IsBanned), id)
+}
+
+// IsMuted mocks base method.
+func (m *MockBloomFilter) IsMuted(id uint) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsMuted", id)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsMuted indicates an expected call of IsMuted.
+func (mr *MockBloomFilterMockRecorder) IsMuted(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsMuted", reflect.TypeOf((*MockBloomFilter)(nil).IsMuted), id)
+}
+
+// Start mocks base method.
+func (m *MockBloomFilter) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start.
+func (mr *MockBloomFilterMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockBloomFilter)(nil).Start))
+}
+
+// Stop mocks base method.
+func (m *MockBloomFilter) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockBloomFilterMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockBloomFilter)(nil).Stop))
+}
+
+// UnbanUser mocks base method.
+func (m *MockBloomFilter) UnbanUser(id uint) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UnbanUser", id)
+}
+
+// UnbanUser indicates an expected call of UnbanUser.
+func (mr *MockBloomFilterMockRecorder) UnbanUser(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnbanUser", reflect.TypeOf((*MockBloomFilter)(nil).UnbanUser), id)
 }
 
 // MockTestableCache is a mock of TestableCache interface.

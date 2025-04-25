@@ -30,7 +30,8 @@ func NewSQLManagerRepository(db *gorm.DB) Manager {
 }
 
 func (s *SQLManagerRepository) Create(data *m.Manager) error {
-	return errorsx.HandleError(s.db.Create(data).Error)
+	err := s.db.Create(data).Error
+	return errorsx.HandleError(err)
 }
 
 func (s *SQLManagerRepository) Delete(id uint) error {
@@ -89,12 +90,6 @@ func (s *SQLManagerRepository) CountBannedUser() (int64, error) {
 }
 
 func (s *SQLManagerRepository) SetPermission(id uint, permission uint) error {
-	// q := `UPDATE manager AS m1
-	// JOIN manager AS m2 ON m2.id = ? AND m2.permissions = ?
-	// SET m1.permissions = ? WHERE m1.id = ?
-	// `
-	// err := s.db.Exec(q, from, m.MgrSuperAdministrator, permission, to).Error
-	// return errorsx.HandleError(err)
 	q := `UPDATE manager SET permissions = ? WHERE id = ?`
 	err := s.db.Exec(q, permission, id).Error
 	return errorsx.HandleError(err)

@@ -17,6 +17,7 @@ type Service interface {
 	Config() config.Config
 	Cache() repo.Cache
 	Hub() HubInterface
+	SetHub(hub HubInterface)
 }
 
 type HubInterface interface {
@@ -38,8 +39,6 @@ type HubInterface interface {
 func NewHubInterface(service Service) HubInterface {
 	return NewHub(service)
 }
-
-// var hub *Hub
 
 const checkTimeoutMsgInterval = 500 * time.Millisecond
 

@@ -225,14 +225,14 @@ type MemberStatusContext struct {
 }
 
 type Manager struct {
-	ID          uint   `gorm:"primarykey;autoincrement"`
-	Created_At  int64  `gorm:"autoCreateTime;column:created_at"`
-	Updated_At  int64  `gorm:"autoUpdateTime;column:updated_at"`
-	Deleted_At  int64  `gorm:"default:null;column:deleted_at"`
-	Permissions uint   `gorm:"default:4;column:permissions"`
-	Username    string `gorm:"not null;column:username"`
-	Password    string `json:"-" gorm:"not null;column:password"`
-	Email       string `gorm:"not null;column:email"`
+	ID          uint   `json:"id" gorm:"primarykey;autoincrement"`
+	Created_At  int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	Updated_At  int64  `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
+	Deleted_At  int64  `json:"deleted_at" gorm:"default:null;column:deleted_at"`
+	Permissions uint   `json:"permissions" gorm:"default:4;column:permissions"`
+	Username    string `json:"username" gorm:"not null;column:username"`
+	Password    string `json:"password" gorm:"not null;column:password"`
+	Email       string `json:"email" gorm:"not null;column:email"`
 }
 
 // manager permissions

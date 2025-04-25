@@ -8,6 +8,7 @@ import (
 	reflect "reflect"
 
 	config "github.com/farnese17/chat/config"
+	storage "github.com/farnese17/chat/pkg/storage"
 	repository "github.com/farnese17/chat/repository"
 	websocket "github.com/farnese17/chat/websocket"
 	gomock "github.com/golang/mock/gomock"
@@ -157,6 +158,20 @@ func (m *MockService) Shutdown() {
 func (mr *MockServiceMockRecorder) Shutdown() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shutdown", reflect.TypeOf((*MockService)(nil).Shutdown))
+}
+
+// Storage mocks base method.
+func (m *MockService) Storage() storage.Storage {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Storage")
+	ret0, _ := ret[0].(storage.Storage)
+	return ret0
+}
+
+// Storage indicates an expected call of Storage.
+func (mr *MockServiceMockRecorder) Storage() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Storage", reflect.TypeOf((*MockService)(nil).Storage))
 }
 
 // User mocks base method.
