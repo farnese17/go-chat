@@ -36,7 +36,11 @@ type Service interface {
 }
 
 func SetupService() Service {
-	service = initRegistry()
+	var err error
+	service, err = initRegistry()
+	if err != nil {
+		panic(err)
+	}
 	return service
 }
 
@@ -62,23 +66,30 @@ type registry struct {
 	config config.Config
 }
 
-func initRegistry() *registry {
+func getDSN(cfg config.Config) string {
+	dbcfg := cfg.Database()
+	// Addr = root:123456@tcp(127.0.0.1:33060)/chat?charset=utf8mb4&parseTime=True&loc=Local
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		dbcfg.User(), dbcfg.Password(), dbcfg.Host(), dbcfg.Port(), dbcfg.DBname())
+	return dsn
+}
+
+func initRegistry() (*registry, error) {
 	cfgPath := findConfigFile()
 	cfg := config.LoadConfig(cfgPath)
 	logger := logger.SetupLogger()
 	validator.SetupValidator()
 
-	// Addr = root:123456@tcp(127.0.0.1:33060)/chat?charset=utf8mb4&parseTime=True&loc=Local
-	dbcfg := cfg.Database()
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		dbcfg.User(), dbcfg.Password(), dbcfg.Host(), dbcfg.Port(), dbcfg.DBname())
-	db, sqlDB := repo.SetupSQL(dsn)
-	redisClient := repo.SetupRedis(cfg)
+	dsn := getDSN(cfg)
+	db, sqlDB, err := repo.SetupSQL(dsn)
+	if err != nil {
+		return nil, err
+	}
+	redisClient, err := repo.SetupRedis(cfg)
+	if err != nil {
+		return nil, err
+	}
 
-	userRepo := repo.NewSQLUserRepository(db)
-	friendRepo := repo.NewSQLFriendRepository(db)
-	groupRepo := repo.NewSQLGroupRepository(db)
-	mgrRepo := repo.NewSQLManagerRepository(db)
 	fs, err := storage.NewLocalStorage(cfg.FileServer().Path(), cfg.FileServer().LogPath(), &storage.MysqlOption{
 		User:     cfg.Database().User(),
 		Password: cfg.Database().Password(),
@@ -91,31 +102,39 @@ func initRegistry() *registry {
 	}
 
 	reg := &registry{
-		mu:         sync.RWMutex{},
-		db:         db,
-		sqlDB:      sqlDB,
-		rc:         redisClient,
-		logger:     logger,
-		userRepo:   userRepo,
-		friendRepo: friendRepo,
-		groupRepo:  groupRepo,
-		mgrRepo:    mgrRepo,
-		config:     cfg,
-		storage:    fs,
+		mu:      sync.RWMutex{},
+		db:      db,
+		sqlDB:   sqlDB,
+		rc:      redisClient,
+		logger:  logger,
+		config:  cfg,
+		storage: fs,
 	}
+	reg.initRepository()
 	cache := repo.NewRedisCache(redisClient, reg)
 	reg.cache = cache
 
 	wsHub := websocket.NewHubInterface(reg)
 	reg.hub = wsHub
-	return reg
+
+	return reg, nil
 }
+
+func (r *registry) initRepository() {
+	r.userRepo = repo.NewSQLUserRepository(r.db)
+	r.friendRepo = repo.NewSQLFriendRepository(r.db)
+	r.groupRepo = repo.NewSQLGroupRepository(r.db)
+	r.mgrRepo = repo.NewSQLManagerRepository(r.db)
+}
+
 func (r *registry) Config() config.Config {
 	return r.config
 }
+
 func (r *registry) Logger() *zap.Logger {
 	return r.logger
 }
+
 func (r *registry) User() repo.UserRepository {
 	return r.userRepo
 }
@@ -123,12 +142,15 @@ func (r *registry) User() repo.UserRepository {
 func (r *registry) Friend() repo.FriendRepository {
 	return r.friendRepo
 }
+
 func (r *registry) Group() repo.GroupRepository {
 	return r.groupRepo
 }
+
 func (r *registry) Manager() repo.Manager {
 	return r.mgrRepo
 }
+
 func (r *registry) Cache() repo.Cache {
 	return r.cache
 }
@@ -138,6 +160,7 @@ func (r *registry) Hub() websocket.HubInterface {
 	defer r.mu.RUnlock()
 	return r.hub
 }
+
 func (r *registry) SetHub(hub websocket.HubInterface) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

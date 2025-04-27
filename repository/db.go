@@ -24,13 +24,14 @@ type Service interface {
 	Cache() Cache
 }
 
-func SetupSQL(dsn string) (*gorm.DB, *sql.DB) {
+func SetupSQL(dsn string) (*gorm.DB, *sql.DB, error) {
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
 		}})
 	if err != nil {
-		logger.GetLogger().Fatal("Failed to connect database", zap.Error(err))
+		logger.GetLogger().Error("Failed to connect database", zap.Error(err))
+		return nil, nil, err
 	}
 	logger.GetLogger().Info("Connected to database")
 	db.AutoMigrate(&model.User{}, &model.Manager{},
@@ -42,17 +43,18 @@ func SetupSQL(dsn string) (*gorm.DB, *sql.DB) {
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		logger.GetLogger().Fatal("Failed to obtain database underlying instance", zap.Error(err))
+		logger.GetLogger().Error("Failed to obtain database underlying instance", zap.Error(err))
+		return nil, nil, err
 	}
 	sqlDB.SetMaxIdleConns(50)
 	sqlDB.SetMaxOpenConns(200)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxLifetime(time.Minute * 5)
 	logger.GetLogger().Info("Database connection pool configuration",
 		zap.Int("MaxIdleConns", 50),
 		zap.Int("MaxOpenConns", 200),
 		zap.Duration("ConnMaxLifeTime", time.Hour),
 	)
-	return db, sqlDB
+	return db, sqlDB, nil
 }
 
 func fixAutoIncrement(db *gorm.DB) {
@@ -81,18 +83,20 @@ func fixAutoIncrement(db *gorm.DB) {
 	}
 }
 
-func SetupRedis(cfg config.Config) *redis.Client {
+func SetupRedis(cfg config.Config) (*redis.Client, error) {
 	addr := cfg.Cache().Addr()
 	db := cfg.Cache().DBNum()
 	redisClient := redis.NewClient(&redis.Options{
-		Addr: addr,
-		DB:   db,
+		Addr:       addr,
+		DB:         db,
+		MaxRetries: 5,
 	})
 
 	err := redisClient.Ping().Err()
 	if err != nil {
-		logger.GetLogger().Fatal("Failed to connect Redis", zap.String("Addr", addr), zap.Error(err))
+		logger.GetLogger().Error("Failed to connect Redis", zap.String("Addr", addr), zap.Error(err))
+		return nil, err
 	}
 	logger.GetLogger().Info("Connected to Redis", zap.String("Addr", addr))
-	return redisClient
+	return redisClient, nil
 }

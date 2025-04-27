@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/farnese17/chat/repository"
-	"github.com/farnese17/chat/service/model"
 	m "github.com/farnese17/chat/service/model"
 	"github.com/farnese17/chat/utils/validator"
 	ws "github.com/farnese17/chat/websocket"
@@ -130,7 +129,7 @@ func TestSearchGroupByName(t *testing.T) {
 				body, _ := json.Marshal(&m.Cursor{PageSize: 1, HasMore: true})
 				resp := testNoError(t, route, url, "GET", testGroupData[0].Owner, bytes.NewBuffer(body), map[string]string{
 					"name": "group"})
-				cursor := &model.Cursor{LastID: uint(1e9 + 1), PageSize: 1, HasMore: true}
+				cursor := &m.Cursor{LastID: uint(1e9 + 1), PageSize: 1, HasMore: true}
 				equalStruct(t, cursor, resp["data"].(map[string]any)["cursor"].(map[string]any))
 				var g []*m.Group
 				jsong, _ := json.Marshal(resp["data"].(map[string]any)["groups"])
@@ -602,7 +601,7 @@ func TestViewAnnounce(t *testing.T) {
 				body, _ := json.Marshal(m.Cursor{PageSize: 15, LastID: 0, HasMore: true})
 				url := fmt.Sprintf("/api/v1/groups/%d/announces", tt.GID)
 				resp := testNoError(t, route, url, "GET", tt.Owner, bytes.NewBuffer(body))
-				cursor := &model.Cursor{LastID: math.MaxUint64, PageSize: 15}
+				cursor := &m.Cursor{LastID: math.MaxUint64, PageSize: 15}
 				equalStruct(t, cursor, resp["data"].(map[string]any)["cursor"].(map[string]any))
 
 				base := int(tt.GID - testGroupData[0].GID)

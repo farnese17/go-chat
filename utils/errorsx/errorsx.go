@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
@@ -22,7 +23,9 @@ var (
 	ErrCantParseToken                = errors.New("无法解析token,请稍后再试")
 	ErrServerClosed                  = errors.New("服务已停止")
 	ErrServerStarted                 = errors.New("服务已启动")
+	ErrSystemUnavailable             = errors.New("系统内部错误,请稍后再试")
 	ErrNoSettingOption               = errors.New("没有找到配置项")
+	ErrSystemBusy                    = errors.New("系统繁忙,请稍后再试")
 	// ErrInputNullSettingOption        = errors.New("请输入要修改的配置项")
 	ErrUnknownError            = errors.New("未知错误")
 	ErrOperactionFailed        = errors.New("操作失败,请重试")
@@ -94,9 +97,11 @@ var StatusCode = map[error]int{
 	ErrNotFound:                      404,
 	ErrInvalidToken:                  401,
 	ErrCantParseToken:                401,
-	ErrServerClosed:                  500,
-	ErrServerStarted:                 500,
+	ErrServerClosed:                  503,
+	ErrServerStarted:                 503,
+	ErrSystemUnavailable:             503,
 	ErrNoSettingOption:               800,
+	ErrSystemBusy:                    801,
 	ErrUnknownError:                  1000,
 	ErrUserExisted:                   1001,
 	ErrUserNotExist:                  1002,
@@ -230,6 +235,8 @@ var (
 	ErrConnectionClosed = errors.New("connection closed")
 )
 
+// var ReconnectToDB func() error
+
 func HandleError(err error) error {
 	if err == nil {
 		return nil
@@ -264,6 +271,9 @@ func HandleError(err error) error {
 			if strings.Contains(e.Message, "groupid") {
 				return ErrForeignKeyViolatedGroup
 			}
+		case 1040:
+			time.Sleep(3 * time.Second)
+			return ErrSystemBusy
 		}
 	}
 	return err

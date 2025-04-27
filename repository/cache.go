@@ -9,7 +9,6 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -515,14 +514,6 @@ func (r *RedisCache) handleError(err error) error {
 	switch {
 	case err == redis.Nil:
 		return errorsx.ErrNotFound
-	case strings.Contains(errStr, "connect: connection refused"):
-		return errorsx.ErrNotRunning
-	case strings.Contains(errStr, "i/o timeout"):
-		return errorsx.ErrTimeout
-	case strings.Contains(errStr, "connection reset by peer"):
-		return errorsx.ErrConnectionReset
-	case strings.Contains(errStr, "connection closed"):
-		return errorsx.ErrConnectionClosed
 	default:
 		return err
 	}

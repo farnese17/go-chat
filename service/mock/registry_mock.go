@@ -94,6 +94,20 @@ func (mr *MockServiceMockRecorder) Group() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Group", reflect.TypeOf((*MockService)(nil).Group))
 }
 
+// Healthy mocks base method.
+func (m *MockService) Healthy() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Healthy")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Healthy indicates an expected call of Healthy.
+func (mr *MockServiceMockRecorder) Healthy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Healthy", reflect.TypeOf((*MockService)(nil).Healthy))
+}
+
 // Hub mocks base method.
 func (m *MockService) Hub() websocket.HubInterface {
 	m.ctrl.T.Helper()
@@ -134,6 +148,20 @@ func (m *MockService) Manager() repository.Manager {
 func (mr *MockServiceMockRecorder) Manager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Manager", reflect.TypeOf((*MockService)(nil).Manager))
+}
+
+// ReconnectToDB mocks base method.
+func (m *MockService) ReconnectToDB() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReconnectToDB")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReconnectToDB indicates an expected call of ReconnectToDB.
+func (mr *MockServiceMockRecorder) ReconnectToDB() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconnectToDB", reflect.TypeOf((*MockService)(nil).ReconnectToDB))
 }
 
 // SetHub mocks base method.

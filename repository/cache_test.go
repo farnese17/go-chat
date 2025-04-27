@@ -31,7 +31,9 @@ var (
 func setupCache(t *testing.T) {
 	cfg := config.LoadConfig(os.Getenv("CHAT_CONFIG"))
 	logger := logger.SetupLogger()
-	client = repo.SetupRedis(cfg)
+	c, err := repo.SetupRedis(cfg)
+	assert.NoError(t, err)
+	client = c
 
 	ctrl := gomock.NewController(t)
 	service = mock.NewMockService(ctrl)
