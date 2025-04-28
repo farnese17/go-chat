@@ -1,8 +1,8 @@
 package errorsx
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -241,10 +241,14 @@ func HandleError(err error) error {
 	if err == nil {
 		return nil
 	}
+	fmt.Println(err.Error())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrRecordNotFound
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
+	errStr := err.Error()
+	if strings.Contains(errStr, "context deadline exceeded") ||
+		strings.Contains(errStr, "invalid connection") ||
+		strings.Contains(errStr, "timeout") {
 		return ErrOperactionTimeout
 	}
 	if e, ok := err.(*mysql.MySQLError); ok {
@@ -276,5 +280,5 @@ func HandleError(err error) error {
 			return ErrSystemBusy
 		}
 	}
-	return err
+	return ErrFailed
 }

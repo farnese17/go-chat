@@ -1,9 +1,6 @@
 package repository
 
 import (
-	"context"
-	"time"
-
 	m "github.com/farnese17/chat/service/model"
 	"github.com/farnese17/chat/utils/errorsx"
 	"gorm.io/gorm"
@@ -20,8 +17,6 @@ type FriendRepository interface {
 	BlockedMeList(id uint) ([]uint, error)
 }
 
-const timeout = 5 * time.Second
-
 type SQLFriendRepository struct {
 	db *gorm.DB
 }
@@ -31,11 +26,8 @@ func NewSQLFriendRepository(db *gorm.DB) FriendRepository {
 }
 
 func (s *SQLFriendRepository) QueryStatus(id1, id2 uint) (*m.Friend, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	var friend *m.Friend
-	err := s.db.WithContext(ctx).Where("user1= ? AND user2 = ?", id1, id2).
+	err := s.db.Where("user1= ? AND user2 = ?", id1, id2).
 		First(&friend).Error
 	if err := errorsx.HandleError(err); err != nil {
 		return friend, err
@@ -44,10 +36,7 @@ func (s *SQLFriendRepository) QueryStatus(id1, id2 uint) (*m.Friend, error) {
 }
 
 func (s *SQLFriendRepository) UpdateStatus(friend *m.Friend) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	result := s.db.WithContext(ctx).Where("user1 = ? AND user2 = ? AND version = ?", friend.User1, friend.User2, friend.Version-1).
+	result := s.db.Where("user1 = ? AND user2 = ? AND version = ?", friend.User1, friend.User2, friend.Version-1).
 		Save(friend)
 	if result.Error != nil {
 		return errorsx.HandleError(result.Error)
@@ -59,11 +48,8 @@ func (s *SQLFriendRepository) UpdateStatus(friend *m.Friend) error {
 }
 
 func (s *SQLFriendRepository) GetUser(id ...uint) ([]*m.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	var user []*m.User
-	err := s.db.WithContext(ctx).Model(&m.User{}).Limit(len(id)).
+	err := s.db.Model(&m.User{}).Limit(len(id)).
 		Select("id,username").
 		Where("id IN ?", id).
 		Find(&user).Error
@@ -75,11 +61,8 @@ func (s *SQLFriendRepository) GetUser(id ...uint) ([]*m.User, error) {
 }
 
 func (s *SQLFriendRepository) List(id uint) ([]*m.SummaryFriendInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	var friend []*m.SummaryFriendInfo
-	err := s.db.WithContext(ctx).Model(&m.Friend{}).
+	err := s.db.Model(&m.Friend{}).
 		Select(`u.id AS uid,u.username ,u.avatar,friend.status,friend.id,u.ban_level,u.ban_expire_at,
 			if(user1 = ?,user1_remark,user2_remark) AS remark,
 			if(user1 = ?,user1_group,user2_group) AS`+" `group` ", id, id).
@@ -94,15 +77,12 @@ func (s *SQLFriendRepository) List(id uint) ([]*m.SummaryFriendInfo, error) {
 }
 
 func (s *SQLFriendRepository) Get(from, to uint) (*m.Friendinfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	id1, id2 := from, to
 	if from > to {
 		id1, id2 = to, from
 	}
 	var friend *m.Friendinfo
-	result := s.db.WithContext(ctx).Model(&m.Friend{}).
+	result := s.db.Model(&m.Friend{}).
 		Select(`u.id AS uid,u.username,u.avatar,u.phone,u.email,friend.id,friend.status,u.ban_level,u.ban_expire_at,
 			if(user1 = ?,user1_remark,user2_remark) AS remark,
 			if(user1 = ?,user1_group,user2_group) AS`+" `group` ", from, from).
@@ -118,12 +98,8 @@ func (s *SQLFriendRepository) Get(from, to uint) (*m.Friendinfo, error) {
 }
 
 func (s *SQLFriendRepository) UpdateRemarkOrGroup(friend *m.Friend) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	result := s.db.WithContext(ctx).
-		Where("user1 = ? AND user2 = ? AND version = ?",
-					friend.User1, friend.User2, friend.Version-1).
+	result := s.db.Where("user1 = ? AND user2 = ? AND version = ?",
+		friend.User1, friend.User2, friend.Version-1).
 		Updates(&friend) // where id
 
 	if err := errorsx.HandleError(result.Error); err != nil {
@@ -136,12 +112,9 @@ func (s *SQLFriendRepository) UpdateRemarkOrGroup(friend *m.Friend) error {
 }
 
 func (s *SQLFriendRepository) Search(id uint, value string, cursor *m.Cursor) (*m.Cursor, []*m.Friendinfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	value = "%" + value + "%"
 	var result []*m.Friendinfo
-	query := s.db.WithContext(ctx).Model(&m.User{}).
+	query := s.db.Model(&m.User{}).
 		Select(`user.id AS uid,username,avatar,user.created_at,f.id,user.ban_level,user.ban_expire_at,
 		if(user1 = ? OR user2 = ?,status,0) AS status,
 		if(user1 = ? OR user2 = ?,phone,null) AS phone,
@@ -153,7 +126,7 @@ func (s *SQLFriendRepository) Search(id uint, value string, cursor *m.Cursor) (*
 			cursor.LastID, id, m.BanLevelPermanent, []int{m.FSBlock1To2, m.FSBlock2To1, m.FSBothBlocked}).
 		Where("`user`.username LIKE ? OR `user`.id LIKE ? OR `user`.phone LIKE ? OR `user`.email LIKE ?", value, value, value, value)
 
-	err := s.db.WithContext(ctx).Raw(`?
+	err := s.db.Raw(`?
 	ORDER BY
 		CASE status
 			WHEN ? THEN 1
@@ -180,11 +153,8 @@ func (s *SQLFriendRepository) Search(id uint, value string, cursor *m.Cursor) (*
 }
 
 func (s *SQLFriendRepository) BlockedMeList(id uint) ([]uint, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	var data []uint
-	err := s.db.WithContext(ctx).Model(&m.Friend{}).
+	err := s.db.Model(&m.Friend{}).
 		Select("if(user1 = ?,user2,user1)", id).
 		Where("(user1 = ? AND (`status` = ? OR `status` = ?)) OR (user2 = ? AND (`status` = ? OR `status` = ?))",
 			id, m.FSBlock2To1, m.FSBothBlocked, id, m.FSBlock1To2, m.FSBothBlocked).

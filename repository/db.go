@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -54,6 +55,7 @@ func SetupSQL(dsn string) (*gorm.DB, *sql.DB, error) {
 		zap.Int("MaxOpenConns", 200),
 		zap.Duration("ConnMaxLifeTime", time.Hour),
 	)
+	timeoutMiddleware(time.Second * 5)(db)
 	return db, sqlDB, nil
 }
 
@@ -67,7 +69,7 @@ func fixAutoIncrement(db *gorm.DB) {
 	q := `SELECT TABLE_NAME AS name,AUTO_INCREMENT AS auto_increment 
 			FROM information_schema.` + "`TABLES` " +
 		`WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ?`
-	if err := db.Debug().Raw(q, tableName).Scan(&currIDAt).Error; err != nil {
+	if err := db.Raw(q, tableName).Scan(&currIDAt).Error; err != nil {
 		logger.GetLogger().Panic("Failed to get auto_increment", zap.Error(err))
 		panic(err)
 	}
@@ -79,6 +81,41 @@ func fixAutoIncrement(db *gorm.DB) {
 			if err := db.Exec(fmt.Sprintf("ALTER TABLE `%s` auto_increment = %d", c.Name, idStartAt[c.Name])).Error; err != nil {
 				panic(err)
 			}
+		}
+	}
+}
+
+func timeoutMiddleware(timeout time.Duration) func(*gorm.DB) {
+	return func(db *gorm.DB) {
+		operations := []string{"create", "query", "update", "delete", "row", "raw"}
+		for _, op := range operations {
+			t := timeout * 2
+			processor := db.Callback().Create()
+			switch op {
+			case "query":
+				processor = db.Callback().Query()
+				t = timeout
+			case "update":
+				processor = db.Callback().Update()
+			case "delete":
+				processor = db.Callback().Delete()
+			case "raw":
+				processor = db.Callback().Raw()
+			case "row":
+				processor = db.Callback().Row()
+			}
+			processor.Before("gorm:"+op).Register("timeout:before_"+op, func(d *gorm.DB) {
+				ctx, cancel := context.WithTimeout(context.Background(), t)
+				d.Statement.Context = ctx
+				d.InstanceSet("cancel", cancel)
+			})
+			processor.After("gorm:"+op).Register("timeout:after_"+op, func(d *gorm.DB) {
+				if cancel, ok := d.InstanceGet("cancel"); ok {
+					if cancelFunc, ok := cancel.(context.CancelFunc); ok {
+						cancelFunc()
+					}
+				}
+			})
 		}
 	}
 }

@@ -66,7 +66,7 @@ func (g *GroupService) Create(group *m.Group) (*m.Group, error) {
 			return nil, errorsx.ErrUserNotExist
 		}
 		g.service.Logger().Error("Failed to create group", zap.Error(err))
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 
 	// 删除缓存，避免空集
@@ -86,7 +86,7 @@ func (g *GroupService) SearchByID(gid uint) (*m.Group, error) {
 			return nil, errorsx.ErrGroupNotFound
 		}
 		g.service.Logger().Error("Failed to search group", zap.Error(err))
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	return group, nil
 }
@@ -102,7 +102,7 @@ func (g *GroupService) SearchByName(name string, cursor *m.Cursor) (map[string]a
 	groups, cursor, err := g.service.Group().SearchByName(name, cursor)
 	if err != nil {
 		g.service.Logger().Error("Failed to search by name", zap.Error(err))
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	data := map[string]any{"groups": groups, "cursor": cursor}
 	return data, nil
@@ -123,7 +123,7 @@ func (g *GroupService) Update(from, gid uint, column string, value string) error
 			return errorsx.ErrPermissiondenied
 		}
 		g.service.Logger().Error("Failed to update group information", zap.Error(err))
-		return errorsx.ErrFailed
+		return err
 		// return err
 	}
 	return nil
@@ -149,7 +149,7 @@ func (g *GroupService) Delete(gid uint, uid uint) error {
 			return errorsx.ErrPermissiondenied
 		}
 		g.service.Logger().Error("Failed to delete group", zap.Error(err))
-		return errorsx.ErrFailed
+		return err
 	}
 
 	// 删除缓存
@@ -181,7 +181,7 @@ func (g *GroupService) Members(gid uint) ([]*m.MemberInfo, error) {
 	}
 	members, err := g.service.Group().Members(gid, 0, -1)
 	if err != nil {
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	if len(members) == 0 {
 		return nil, errorsx.ErrGroupNotFound
@@ -197,7 +197,7 @@ func (g *GroupService) Member(uid uint, gid uint) (*m.MemberInfo, error) {
 	member, err := g.service.Group().Members(gid, uid, 1)
 	if err != nil {
 		g.service.Logger().Error("Get member failed", zap.Error(err))
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	if len(member) == 0 {
 		return nil, errorsx.ErrNotInGroup
@@ -219,7 +219,7 @@ func (g *GroupService) Invite(from, to, gid uint) (*ws.ChatMsg, error) {
 	}
 	if ctx.NewStatus == m.GroupRoleMember {
 		if err := g.service.Group().UpdateStatus(ctx); err != nil {
-			return nil, errorsx.ErrFailed
+			return nil, err
 		}
 		g.service.Cache().AddMemberIfKeyExist(gid, to, m.GroupRoleMember)
 	}
@@ -423,11 +423,11 @@ func (g *GroupService) Apply(gid, uid uint) error {
 	ctx.To = uid
 	if ctx.NoStatus {
 		if err := g.service.Group().CreateMember(ctx); err != nil {
-			return errorsx.ErrFailed
+			return err
 		}
 	} else {
 		if err := g.service.Group().UpdateStatus(ctx); err != nil {
-			return errorsx.ErrFailed
+			return err
 		}
 	}
 
@@ -472,12 +472,12 @@ func (g *GroupService) AcceptInvite(msg ws.ChatMsg) error {
 			if errors.Is(err, errorsx.ErrDuplicateEntry) {
 				return errorsx.ErrOperactionFailed
 			}
-			return errorsx.ErrFailed
+			return err
 		}
 		body = fmt.Sprintf(acceptInviteMsg, ctx.Data[ctx.From].Username, ctx.Data[ctx.To].Username)
 	} else {
 		if err := g.service.Group().UpdateStatus(ctx); err != nil {
-			return errorsx.ErrFailed
+			return err
 		}
 		body = fmt.Sprintf(joinedMsg, ctx.Data[ctx.From].Username, ctx.Data[ctx.To].Username)
 	}
@@ -536,7 +536,7 @@ func (g *GroupService) RejectApply(from, to, gid uint) error {
 	}
 
 	if err := g.service.Group().DeleteMember(ctx); err != nil {
-		return errorsx.ErrFailed
+		return err
 	}
 
 	body := fmt.Sprintf(rejectApply, ctx.Data[from].Username)
@@ -570,7 +570,7 @@ func (g *GroupService) Leave(uid, gid uint) error {
 
 	ctx.To = uid
 	if err := g.service.Group().DeleteMember(ctx); err != nil {
-		return errorsx.ErrFailed
+		return err
 	}
 	err := g.removeCacheMember(gid, uid)
 	body := fmt.Sprintf(leaveMsg, ctx.Data[uid].Username)
@@ -598,7 +598,7 @@ func (g *GroupService) Kick(from, to, gid uint) error {
 	}
 
 	if err := g.service.Group().DeleteMember(ctx); err != nil {
-		return errorsx.ErrFailed
+		return err
 	}
 
 	err := g.removeCacheMember(gid, to)
@@ -630,7 +630,7 @@ func (g *GroupService) HandOverOwner(from, to uint, gid uint) error {
 		if errors.Is(err, errorsx.ErrPermissionDenied) {
 			return errorsx.ErrPermissiondenied
 		}
-		return errorsx.ErrFailed
+		return err
 	}
 
 	g.service.Cache().AddMemberIfKeyExist(gid, from, m.GroupRoleMember)
@@ -661,7 +661,7 @@ func (g *GroupService) QueryRole(ctx *m.MemberStatusContext) (*m.MemberStatusCon
 	result, err := g.service.Group().QueryRole(ctx.GID, ids...)
 	if err != nil {
 		g.service.Logger().Error("Failed to query role", zap.Error(err))
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 
 	data := make(map[uint]*m.GroupMemberRole)
@@ -705,7 +705,7 @@ func (g *GroupService) ModifyAdmin(from, to, gid uint, newStatus int) error {
 	}
 
 	if err := g.service.Group().UpdateStatus(ctx); err != nil {
-		return errorsx.ErrFailed
+		return err
 	}
 
 	g.service.Cache().AddMemberIfKeyExist(gid, to, ctx.NewStatus)
@@ -733,7 +733,7 @@ func (g *GroupService) AdminResign(uid, gid uint) error {
 
 	ctx.To = uid
 	if err := g.service.Group().UpdateStatus(ctx); err != nil {
-		return errorsx.ErrFailed
+		return err
 	}
 
 	g.service.Cache().AddMemberIfKeyExist(gid, uid, m.GroupRoleMember)
@@ -861,7 +861,7 @@ func (g *GroupService) ViewLatestAnnounce(uid, gid uint) (*m.GroupAnnounceInfo, 
 	// }
 	announce, _, err := g.service.Group().ViewAnnounce(gid, uid, nil)
 	if err != nil {
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	if len(announce) == 0 {
 		return nil, nil

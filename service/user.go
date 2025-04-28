@@ -68,7 +68,7 @@ func (u *UserService) Delete(id uint) error {
 			return errorsx.ErrHasGroupNeedHandOver
 		}
 		u.service.Logger().Error("Filed to delete user", zap.Error(err))
-		return errorsx.ErrUnknownError
+		return err
 	}
 	u.service.Logger().Info("Finished delete user", zap.Uint("id", id))
 	return nil
@@ -89,7 +89,7 @@ func (u *UserService) SreachUser(account string) (*m.ResponseUserInfo, error) {
 			return nil, errorsx.ErrUserNotExist
 		}
 		u.service.Logger().Error("Failed to search", zap.Error(err))
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	return user, nil
 }
@@ -104,7 +104,7 @@ func (u *UserService) Get(uid uint) (*m.ResponseUserInfo, error) {
 			return nil, errorsx.ErrUserNotExist
 		}
 		u.service.Logger().Error("Failed to search", zap.Error(err))
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	return user, nil
 }
@@ -131,7 +131,7 @@ func (u *UserService) UpdateInfo(id uint, value string, field string) error {
 	if err := u.service.User().UpdateUserInfo(id, value, field); err != nil {
 		if errors.Is(err, errorsx.ErrRecordNotFound) {
 			u.service.Logger().Error("Failed to update user information: user not found", zap.Uint("id", id))
-			return errorsx.ErrUserNotExist
+			return nil
 		}
 		if errors.Is(err, errorsx.ErrDuplicateEntryPhone) {
 			u.service.Logger().Error("Failed to update user information: phone is used", zap.Uint("id", id), zap.String("phone", value))
@@ -142,7 +142,7 @@ func (u *UserService) UpdateInfo(id uint, value string, field string) error {
 			return errorsx.ErrEmailRegistered
 		}
 		u.service.Logger().Error("Failed to update userinfo", zap.Error(err))
-		return errorsx.ErrFailed
+		return err
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func (u *UserService) UpdatePassword(id uint, password map[string]string) error 
 			return errorsx.ErrUserNotExist
 		}
 		u.service.Logger().Error("Failed to update password: retrieving user", zap.Error(err))
-		return errorsx.ErrFailed
+		return err
 	}
 	if !utils.ComparePassword(user.Password, old) {
 		return errorsx.ErrWrongPassword
@@ -180,7 +180,7 @@ func (u *UserService) UpdatePassword(id uint, password map[string]string) error 
 	err = u.service.User().UpdatePassword(id, hashedPW)
 	if err != nil {
 		u.service.Logger().Error("Failed to update password", zap.Error(err))
-		return errorsx.ErrFailed
+		return err
 	}
 	u.service.Logger().Info("Update password successful", zap.Uint("id", id))
 	return nil
@@ -201,8 +201,7 @@ func (u *UserService) Login(account string, password string) (*m.ResponseUserInf
 			return nil, errorsx.ErrUserNotExist
 		}
 		u.service.Logger().Error("Failed to login: retrieving user", zap.Error(err))
-		return nil, errorsx.ErrFailed
-		// return nil, err
+		return nil, err
 	}
 	if err := u.ifBannedThenReturn(user.ID, user.BanLevel, user.BanExpireAt); err != nil {
 		return nil, err

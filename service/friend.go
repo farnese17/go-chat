@@ -58,7 +58,7 @@ func (f *FriendService) QueryStatus(from, to uint) (*m.Friend, error) {
 		if errors.Is(err, errorsx.ErrRecordNotFound) {
 			return friend, errorsx.ErrNotFound
 		}
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	return friend, nil
 }
@@ -167,7 +167,7 @@ func (f *FriendService) updateStatus(ctx *updateFriendContext,
 			if f.retry(err, try) {
 				continue
 			}
-			return errorsx.ErrFailed
+			return err
 		}
 		return nil
 	}
@@ -605,7 +605,7 @@ func (f *FriendService) List(id uint) (map[string][]*m.SummaryFriendInfo, error)
 func (f *FriendService) Get(from, to uint) (*m.Friendinfo, error) {
 	friend, err := f.service.Friend().Get(from, to)
 	if err != nil {
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 	return friend, nil
 }
@@ -629,7 +629,7 @@ func (f *FriendService) Search(id uint, value string, cursor *m.Cursor) (map[str
 
 	cursor, data, err := f.service.Friend().Search(id, value, cursor)
 	if err != nil {
-		return nil, errorsx.ErrFailed
+		return nil, err
 	}
 
 	res := map[string]any{"cursor": cursor, "data": data}

@@ -1,11 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	v1 "github.com/farnese17/chat/api/v1"
 	"github.com/farnese17/chat/registry"
-	"github.com/farnese17/chat/repository"
 	"github.com/farnese17/chat/router"
 	"go.uber.org/zap"
 )
@@ -14,10 +11,10 @@ func main() {
 	service := registry.SetupService()
 	defer service.Shutdown()
 
-	if err := repository.Warm(service); err != nil {
-		fmt.Println(err)
-		return
-	}
+	// if err := repository.Warm(service); err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
 
 	go service.Cache().StartFlush()
 	service.Cache().BFM().Start()
