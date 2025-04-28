@@ -40,7 +40,9 @@ func SetupSQL(dsn string) (*gorm.DB, *sql.DB, error) {
 		&model.Group{}, &model.GroupPerson{}, &model.GroupAnnouncement{},
 	)
 	logger.GetLogger().Info("Database tables migration completed successfully")
-	fixAutoIncrement(db)
+	if err := fixAutoIncrement(db); err != nil {
+		return nil, nil, err
+	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -59,7 +61,7 @@ func SetupSQL(dsn string) (*gorm.DB, *sql.DB, error) {
 	return db, sqlDB, nil
 }
 
-func fixAutoIncrement(db *gorm.DB) {
+func fixAutoIncrement(db *gorm.DB) error {
 	tableName := []string{"user", "group", "manager"}
 	idStartAt := map[string]int{"user": int(1e5 + 1), "group": int(1e9 + 1), "manager": 1001}
 	currIDAt := []struct {
@@ -70,19 +72,20 @@ func fixAutoIncrement(db *gorm.DB) {
 			FROM information_schema.` + "`TABLES` " +
 		`WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ?`
 	if err := db.Raw(q, tableName).Scan(&currIDAt).Error; err != nil {
-		logger.GetLogger().Panic("Failed to get auto_increment", zap.Error(err))
-		panic(err)
+		logger.GetLogger().Error("Failed to get auto_increment", zap.Error(err))
+		return err
 	}
 	if len(currIDAt) != len(tableName) {
-		panic(fmt.Sprintf("Get %d auto_increment,but should has %d", len(currIDAt), len(tableName)))
+		return fmt.Errorf("Get %d auto_increment,but should has %d", len(currIDAt), len(tableName))
 	}
 	for _, c := range currIDAt {
 		if c.Auto_increment < idStartAt[c.Name] {
 			if err := db.Exec(fmt.Sprintf("ALTER TABLE `%s` auto_increment = %d", c.Name, idStartAt[c.Name])).Error; err != nil {
-				panic(err)
+				return err
 			}
 		}
 	}
+	return nil
 }
 
 func timeoutMiddleware(timeout time.Duration) func(*gorm.DB) {
