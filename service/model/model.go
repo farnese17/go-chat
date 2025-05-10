@@ -204,10 +204,11 @@ type Cursor struct {
 }
 
 const (
-	CacheMessage    = "chat:cache:message:"
-	CacheBlockUnack = "chat:block:unack"
-	CacheGroup      = "chat:cache:group:"
-	CacheGroups     = "chat:cache:groups"
+	CacheMessage        = "chat:cache:message:"
+	CacheMessagePending = "chat:cache:pending"
+	CacheBlockUnack     = "chat:block:unack"
+	CacheGroup          = "chat:cache:group:"
+	CacheGroups         = "chat:cache:groups"
 
 	CacheToken  = "chat:token:"
 	CacheBanned = "chat:banned:"

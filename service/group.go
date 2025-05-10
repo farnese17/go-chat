@@ -162,10 +162,11 @@ func (g *GroupService) Delete(gid uint, uid uint) error {
 	message := g.newMessage(uid, gid, deleteGroupMsg, members)
 	hub := g.service.Hub()
 	if hub == nil {
-		g.cacheMessage(message, members...)
+		g.storeOfflineMessage(message, members...)
 		return errorsx.ErrHandleSuccessed
 	}
-	hub.SendDeleteGroupNotify(message)
+	// hub.SendDeleteGroupNotify(message)
+	hub.SendToBroadcast(message)
 	return nil
 }
 
@@ -236,7 +237,7 @@ func (g *GroupService) Invite(from, to, gid uint) (*ws.ChatMsg, error) {
 		if hub != nil {
 			hub.SendToChat(msg)
 		} else {
-			g.cacheMessage(msg, to)
+			g.storeOfflineMessage(msg, to)
 			err = errorsx.ErrMessagePushServiceUnavailabel
 		}
 	} else if ctx.NewStatus == m.GroupRoleMember {
@@ -427,6 +428,9 @@ func (g *GroupService) Apply(gid, uid uint) error {
 		}
 	} else {
 		if err := g.service.Group().UpdateStatus(ctx); err != nil {
+			if errors.Is(err, errorsx.ErrNoAffectedRows) {
+				return errorsx.ErrFailed
+			}
 			return err
 		}
 	}
@@ -451,7 +455,7 @@ func (g *GroupService) AcceptInvite(msg ws.ChatMsg) error {
 	if !g.msgIsValid(msg.Time) {
 		return errorsx.ErrInvitationHasExpired
 	}
-	gid, ok := msg.Data.(float64)
+	gid, ok := msg.Extra.(float64)
 	if !ok {
 		return errorsx.ErrInvalidParams
 	}
@@ -545,7 +549,7 @@ func (g *GroupService) RejectApply(from, to, gid uint) error {
 	if hub != nil {
 		hub.SendToChat(msg)
 	} else {
-		g.service.Cache().CacheMessage(msg.To, msg)
+		g.service.Cache().StoreOfflineMessage(msg.To, msg)
 		return errorsx.ErrMessagePushServiceUnavailabel
 	}
 	return nil
@@ -758,7 +762,7 @@ func (g *GroupService) broadcase(gid uint, body string) error {
 		if err != nil {
 			return err
 		}
-		g.cacheMessage(message, ids...)
+		g.storeOfflineMessage(message, ids...)
 		return errorsx.ErrMessagePushServiceUnavailabel
 	}
 
@@ -766,9 +770,9 @@ func (g *GroupService) broadcase(gid uint, body string) error {
 	return nil
 }
 
-func (g *GroupService) cacheMessage(msg any, uid ...uint) {
+func (g *GroupService) storeOfflineMessage(msg any, uid ...uint) {
 	for _, id := range uid {
-		g.service.Cache().CacheMessage(id, msg)
+		g.service.Cache().StoreOfflineMessage(id, msg)
 	}
 }
 func (g *GroupService) removeCacheMember(gid, uid uint) error {
@@ -803,12 +807,12 @@ func (g *GroupService) msgIsValid(msgTime int64) bool {
 
 func (g *GroupService) newMessage(from, to uint, body string, data any) *ws.ChatMsg {
 	return &ws.ChatMsg{
-		Type: ws.System,
-		From: from,
-		To:   to,
-		Body: body,
-		Time: time.Now().UnixMilli(),
-		Data: data,
+		Type:  ws.System,
+		From:  from,
+		To:    to,
+		Body:  body,
+		Time:  time.Now().UnixMilli(),
+		Extra: data,
 	}
 }
 

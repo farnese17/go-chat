@@ -24,9 +24,12 @@ type Cache interface {
 	Stop()
 	Get(key string) (string, error)
 	Set(key string, val any, expire time.Duration)
-	CacheMessage(id uint, message any)
-	GetMessage(id uint) ([]string, error)
-	RemoveMessage(id uint, message string)
+	StorePendingMessage(message any, sign int64)
+	StoreOfflineMessage(id uint, message any)
+	GetOfflineMessages(id uint) ([]string, error)
+	GetPendingMessages() ([]string, error)
+	RemoveOfflineMessage(id uint, message string)
+	RemovePendingMessage(msgID string, receiver uint, sign int64) error
 	GetMembersAndCache(gid uint) ([]uint, error)
 	GetMembers(gid uint) ([]uint, error)
 	GetAdmin(gid uint) ([]uint, error)
@@ -50,13 +53,6 @@ type Cache interface {
 		newCursor uint64, ids []uint, level []int, ttl []int64, err error)
 }
 
-type BlockCache interface {
-	CacheUnackMessage(t time.Duration, msg any)
-	Ack(from, to uint, msg any)
-	GetUnAck() ([]string, error)
-	RemoveBlockMessage(msg any)
-}
-
 type RedisCache struct {
 	client             *redis.Client
 	pipe               redis.Pipeliner
@@ -77,7 +73,6 @@ func NewRedisCache(client *redis.Client, service Service) Cache {
 		service:            service,
 		bloomFilterManager: newBloomFilterManager(100000, blhash1, blhash2, blhash3),
 	}
-	// go cache.StartFlush()
 	go cache.startSync()
 	return cache
 }
@@ -134,12 +129,17 @@ func (rc *RedisCache) Set(key string, val any, expire time.Duration) {
 	rc.set(key, val, expire)
 }
 
+func (rc *RedisCache) StorePendingMessage(message any, sign int64) {
+	key := m.CacheMessagePending
+	rc.storeToSortedSet(key, float64(sign), message)
+}
+
 // message
-func (rc *RedisCache) CacheMessage(id uint, message any) {
+func (rc *RedisCache) StoreOfflineMessage(id uint, message any) {
 	key := m.CacheMessage + strconv.Itoa(int(id))
 	rc.storeToSet(key, message)
 }
-func (rc *RedisCache) GetMessage(id uint) ([]string, error) {
+func (rc *RedisCache) GetOfflineMessages(id uint) ([]string, error) {
 	key := m.CacheMessage + strconv.Itoa(int(id))
 	data, err := rc.getFromSet(key)
 	if err != nil {
@@ -151,17 +151,77 @@ func (rc *RedisCache) GetMessage(id uint) ([]string, error) {
 	}
 	return data, nil
 }
-func (rc *RedisCache) RemoveMessage(id uint, message string) {
+func (rc *RedisCache) RemoveOfflineMessage(id uint, message string) {
 	key := m.CacheMessage + strconv.Itoa(int(id))
 	rc.removeFromSet(key, message)
 }
 
+func (rc *RedisCache) GetPendingMessages() ([]string, error) {
+	key := m.CacheMessagePending
+	count := rc.service.Config().Common().ResendBatchSize()
+	timeout := rc.service.Config().Common().MessageAckTiemout()
+	t := time.Now().Add(-timeout).UnixMilli()
+	max := strconv.FormatInt(t, 10)
+	result, err := rc.client.ZRangeByScore(key, redis.ZRangeBy{Min: "-inf", Max: max, Offset: 0, Count: count + 1}).Result()
+	if err != nil {
+		rc.service.Logger().Error("Failed to get pending messages", zap.Error(err))
+		return nil, err
+	}
+	return result, nil
+}
+
+func (rc *RedisCache) RemovePendingMessage(msgID string, receiver uint, sign int64) error {
+	key := m.CacheMessagePending
+	script := redis.NewScript(`
+		local key = KEYS[1]
+		local msgID = ARGV[1]
+		local receiver = tonumber(ARGV[2])
+		local score = ARGV[3]
+
+		local offset = 0
+		while true do
+			local msgs = redis.call("ZRANGEBYSCORE",key,score,score,"limit",offset,30)
+			if #msgs == 0 then
+				return
+			end
+			for i=1,#msgs do
+				local msg = cjson.decode(msgs[i])
+				if msg.id == msgID and msg.to == receiver then 
+					redis.call("ZREM",key,msgs[i])
+					return 
+				end
+			end
+
+			if #msgs < 30 then 
+				return
+			end
+			offset = offset + 30
+		end
+	`)
+
+	var err error
+	maxTries := rc.service.Config().Common().MaxRetries()
+	for i := 0; i < maxTries; i++ {
+		err = script.Run(rc.client, []string{key}, msgID, receiver, sign).Err()
+		if err == nil {
+			return nil
+		}
+		rc.service.Logger().Error("Failed to remove pending message", zap.Error(err))
+		delay := rc.service.Config().Cache().RetryDelay(i)
+		time.Sleep(delay)
+	}
+	return err
+}
+
+// 获取群组成员并缓存
 func (rc *RedisCache) GetMembersAndCache(gid uint) ([]uint, error) {
 	if members := rc.getMembers(gid, "0", "+inf"); members != nil {
 		return members, nil
 	}
 	return rc.getMembersAndCache(gid)
 }
+
+// 获取群组管理员并缓存所有成员
 func (rc *RedisCache) GetAdmin(gid uint) ([]uint, error) {
 	if members := rc.getMembers(gid, "1", "2"); members != nil {
 		return members, nil
@@ -169,6 +229,7 @@ func (rc *RedisCache) GetAdmin(gid uint) ([]uint, error) {
 	return rc.getMembersAndCache(gid, m.GroupRoleAdmin, m.GroupRoleOwner)
 }
 
+// 获取群组成员但不缓存
 func (rc *RedisCache) GetMembers(gid uint) ([]uint, error) {
 	if members := rc.getMembers(gid, "0", "+inf"); members != nil {
 		return members, nil
@@ -368,27 +429,6 @@ func (r *RedisCache) getFromSortedSet(key string, start, end string) ([]string, 
 		Max: end,
 	}).Result()
 	return data, r.handleError(err)
-}
-
-// block message
-func (rc *RedisCache) CacheUnackMessage(t time.Duration, msg any) {
-	expiraAt := time.Now().Add(t).UnixMilli()
-	rc.storeToSortedSet(m.CacheBlockUnack, float64(expiraAt), msg)
-}
-func (rc *RedisCache) Ack(from, to uint, msg any) {
-	jsonData, _ := json.Marshal(msg)
-	rc.removeFromSortedSet(m.CacheBlockUnack, jsonData)
-}
-func (rc *RedisCache) GetUnAck() ([]string, error) {
-	now := strconv.FormatInt(time.Now().UnixMilli(), 10)
-	data, err := rc.getFromSortedSet(m.CacheBlockUnack, "0", now)
-	if err := rc.handleError(err); err != nil && !errors.Is(err, errorsx.ErrNotFound) {
-		return nil, err
-	}
-	return data, nil
-}
-func (rc *RedisCache) RemoveBlockMessage(msg any) {
-	rc.removeFromSortedSet(m.CacheBlockUnack, msg)
 }
 
 // token
@@ -862,22 +902,12 @@ func (h *muteList) Pop() any {
 
 type TestableCache interface {
 	CountSet(key string) int64
-	Clearup()
-	ScanKeys(key string, count int64) ([]string, error)
 	GetGroupsOrMembers(key string) ([]uint, error)
 }
 
 func (rc *RedisCache) CountSet(key string) int64 {
 	c, _ := rc.client.SCard(key).Result()
 	return c
-}
-func (rc *RedisCache) Clearup() {
-	rc.client.FlushAll()
-}
-
-func (rc *RedisCache) ScanKeys(key string, count int64) ([]string, error) {
-	keys, _, err := rc.client.Scan(0, key, count).Result()
-	return keys, err
 }
 
 func (rc *RedisCache) GetGroupsOrMembers(key string) ([]uint, error) {

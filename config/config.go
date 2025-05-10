@@ -33,14 +33,17 @@ func LoadConfig(path string) Config {
 	// default
 	cfg := &config_{
 		Common_: &Common_{
-			Path_:             path,
-			LogDir_:           "./chat/log/",
-			ResendInterval_:   3 * time.Second,
-			RetryDelay_:       400 * time.Millisecond,
-			JitterCoeff_:      0.5,
-			MaxRetries_:       3,
-			InviteValidDays_:  7,
-			TokenValidPeriod_: 48 * time.Hour,
+			Path_:              path,
+			LogDir_:            "./chat/log/",
+			ResendInterval_:    3 * time.Second,
+			RetryDelay_:        400 * time.Millisecond,
+			JitterCoeff_:       0.5,
+			MaxRetries_:        3,
+			InviteValidDays_:   7,
+			TokenValidPeriod_:  48 * time.Hour,
+			CheckAckTimeout_:   time.Second * 2,
+			MessageAckTiemout_: time.Second * 3,
+			ResendBatchSize_:   100,
 		},
 		Database_: &Database_{
 			Host_:     "127.0.0.1",
@@ -222,6 +225,30 @@ func (cfg *config_) SetCommon(k, v string) error {
 			return errors.New("token有效期太短")
 		}
 		cfg.Common_.TokenValidPeriod_ = t
+	case "check_ack_timeout":
+		t, err := cfg.convertToTime(v)
+		if err != nil {
+			return err
+		}
+		if t <= 0 {
+			return errors.New("检查间隔太短")
+		}
+		cfg.Common_.CheckAckTimeout_ = t
+	case "message_ack_timeout":
+		t, err := cfg.convertToTime(v)
+		if err != nil {
+			return err
+		}
+		if t <= 0 {
+			return errors.New("重发间隔太短")
+		}
+		cfg.Common_.MessageAckTiemout_ = t
+	case "resend_batch_size":
+		val, _ := strconv.ParseInt(v, 10, 64)
+		if val < 1 {
+			return errors.New("resend_batch_size的值必须大于0")
+		}
+		cfg.Common_.ResendBatchSize_ = val
 	default:
 		return errorsx.ErrNoSettingOption
 	}
@@ -261,14 +288,17 @@ func (cfg *config_) SetCache(k, v string) error {
 }
 
 type Common_ struct {
-	Path_             string        `yaml:"config_path" json:"config_path"`
-	LogDir_           string        `yaml:"log_dir" json:"log_dir"`
-	ResendInterval_   time.Duration `yaml:"resend_interval" json:"resend_interval"`
-	RetryDelay_       time.Duration `yaml:"retry_delay" json:"retry_delay"`
-	JitterCoeff_      float64       `yaml:"jitter_coeff" json:"jitter_coeff"`
-	MaxRetries_       int           `yaml:"max_retries" json:"max_retries"`
-	InviteValidDays_  int           `yaml:"invite_valid_days" json:"invite_valid_days"`
-	TokenValidPeriod_ time.Duration `yaml:"token_valid_period" json:"token_valid_period"`
+	Path_              string        `yaml:"config_path" json:"config_path"`
+	LogDir_            string        `yaml:"log_dir" json:"log_dir"`
+	ResendInterval_    time.Duration `yaml:"resend_interval" json:"resend_interval"`
+	RetryDelay_        time.Duration `yaml:"retry_delay" json:"retry_delay"`
+	JitterCoeff_       float64       `yaml:"jitter_coeff" json:"jitter_coeff"`
+	MaxRetries_        int           `yaml:"max_retries" json:"max_retries"`
+	InviteValidDays_   int           `yaml:"invite_valid_days" json:"invite_valid_days"`
+	TokenValidPeriod_  time.Duration `yaml:"token_valid_period" json:"token_valid_period"`
+	CheckAckTimeout_   time.Duration `yaml:"check_ack_timeout" json:"check_ack_timeout"`
+	MessageAckTiemout_ time.Duration `yaml:"message_ack_timeout" json:"message_ack_timeout"`
+	ResendBatchSize_   int64         `yaml:"resend_batch_size" json:"resend_batch_size"`
 }
 
 type Common interface {
@@ -278,6 +308,9 @@ type Common interface {
 	MaxRetries() int
 	InviteValidDays() int
 	TokenValidPeriod() time.Duration
+	CheckAckTimeout() time.Duration
+	MessageAckTiemout() time.Duration
+	ResendBatchSize() int64
 }
 
 func (c *Common_) LogDir() string {
@@ -302,6 +335,18 @@ func (c *Common_) InviteValidDays() int {
 
 func (c *Common_) TokenValidPeriod() time.Duration {
 	return c.TokenValidPeriod_
+}
+
+func (c *Common_) CheckAckTimeout() time.Duration {
+	return c.CheckAckTimeout_
+}
+
+func (c *Common_) MessageAckTiemout() time.Duration {
+	return c.MessageAckTiemout_
+}
+
+func (c *Common_) ResendBatchSize() int64 {
+	return c.ResendBatchSize_
 }
 
 type Database_ struct {

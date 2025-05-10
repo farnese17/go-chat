@@ -32,7 +32,7 @@ func TestGroupCreate(t *testing.T) {
 			errorsx.ErrForeignKeyViolated,
 			errorsx.ErrUserNotExist, true},
 		{&model.Group{GID: gid, Name: "test", Owner: uid, Founder: uid},
-			errors.New("error"),
+			errorsx.HandleError(errors.New("error")),
 			errorsx.ErrFailed, true},
 		{&model.Group{GID: gid, Name: "test", Owner: uid, Founder: uid}, nil, nil, true},
 		{&model.Group{GID: gid, Name: strings.Repeat("a", 20), Owner: uid, Founder: uid}, nil, nil, true},
@@ -68,7 +68,7 @@ func TestGroupSearchByID(t *testing.T) {
 		expected error
 	}{
 		{gid, nil, errorsx.ErrRecordNotFound, errorsx.ErrGroupNotFound},
-		{gid, nil, errors.New("error"), errorsx.ErrFailed},
+		{gid, nil, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
 		{gid, group, nil, nil},
 	}
 
@@ -96,7 +96,7 @@ func TestGroupSearchByName(t *testing.T) {
 	}{
 		{"test", &model.Cursor{PageSize: 0}, nil, errorsx.ErrPageSizeTooSmall, false},
 		{"test", &model.Cursor{PageSize: 31}, nil, errorsx.ErrPageSizeTooBig, false},
-		{"test", &model.Cursor{PageSize: 15}, errors.New("error"), errorsx.ErrFailed, true},
+		{"test", &model.Cursor{PageSize: 15}, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{"test", &model.Cursor{PageSize: 15}, nil, nil, true},
 	}
 	for i, tt := range tests {
@@ -131,8 +131,8 @@ func TestUpdate(t *testing.T) {
 		{gid, uid, "wrong column", "", nil, errorsx.ErrInvalidParams},
 		{gid, uid, "name", "", errorsx.ErrNoAffectedRows, errorsx.ErrPermissiondenied},
 		{gid, uid, "desc", "", errorsx.ErrNoAffectedRows, errorsx.ErrPermissiondenied},
-		{gid, uid, "name", "", errors.New("error"), errorsx.ErrFailed},
-		{gid, uid, "desc", "", errors.New("error"), errorsx.ErrFailed},
+		{gid, uid, "name", "", errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
+		{gid, uid, "desc", "", errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
 		{gid, uid, "name", "", nil, nil},
 		{gid, uid, "desc", "", nil, nil},
 	}
@@ -153,11 +153,11 @@ func TestDelete(t *testing.T) {
 	defer clear(t)
 
 	message := &ws.ChatMsg{
-		Type: ws.System,
-		Body: "该群聊已解散",
-		From: uid,
-		To:   gid,
-		Data: []uint{uid, uid + 1},
+		Type:  ws.System,
+		Body:  "该群聊已解散",
+		From:  uid,
+		To:    gid,
+		Extra: []uint{uid, uid + 1},
 	}
 	cache := []uint{100001, 100002}
 
@@ -168,10 +168,10 @@ func TestDelete(t *testing.T) {
 		mockDelete error
 		expected   error
 	}{
-		{"get cache failed", nil, errors.New("error"), nil, errorsx.ErrFailed},
+		{"get cache failed", nil, errorsx.HandleError(errors.New("error")), nil, errorsx.ErrFailed},
 		{"members are null", []uint{}, nil, nil, errorsx.ErrGroupNotFound},
 		{"delete failed", cache, nil, errorsx.ErrNoAffectedRows, errorsx.ErrPermissiondenied},
-		{"delete failed", cache, nil, errors.New("error"), errorsx.ErrFailed},
+		{"delete failed", cache, nil, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
 		{"delete successed", cache, nil, nil, nil},
 	}
 
@@ -240,7 +240,7 @@ func TestMembers(t *testing.T) {
 		expected    []*model.MemberInfo
 		expectedErr error
 	}{
-		{gid, members[:0], errors.New("error"), nil, errorsx.ErrFailed},
+		{gid, members[:0], errorsx.HandleError(errors.New("error")), nil, errorsx.ErrFailed},
 		{gid, members[:0], nil, nil, errorsx.ErrGroupNotFound},
 		{gid, members, nil, members, nil},
 	}
@@ -268,7 +268,7 @@ func TestMember(t *testing.T) {
 		expected    *model.MemberInfo
 		expectedErr error
 	}{
-		{gid, uid, nil, errors.New("error"), nil, errorsx.ErrFailed},
+		{gid, uid, nil, errorsx.HandleError(errors.New("error")), nil, errorsx.ErrFailed},
 		{gid, uid, nil, nil, nil, errorsx.ErrNotInGroup},
 		{gid, uid, member, nil, member[0], nil},
 	}
@@ -304,7 +304,7 @@ func TestQueryRole(t *testing.T) {
 		{&model.MemberStatusContext{GID: gid, From: uid - 1, To: uid + 1},
 			nil, nil, nil, errorsx.ErrInvalidParams, false},
 		{&model.MemberStatusContext{GID: gid, From: uid, To: uid + 1},
-			nil, errors.New("error"), nil, errorsx.ErrFailed, true},
+			nil, errorsx.HandleError(errors.New("error")), nil, errorsx.ErrFailed, true},
 		{&model.MemberStatusContext{GID: gid, From: uid, To: uid + 1},
 			members[:0], nil,
 			&model.MemberStatusContext{GID: gid, From: uid, To: uid + 1, Data: make(map[uint]*model.GroupMemberRole)}, errorsx.ErrUserNotExist, true},
@@ -344,7 +344,7 @@ func TestInvite(t *testing.T) {
 		mock       error
 		expected   error
 	}{
-		{0, 0, 0, errors.New("error"), errorsx.ErrFailed},
+		{0, 0, 0, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
 		{0, 0, 0, nil, errorsx.ErrUserNotExist},
 		{model.GroupRoleMember, 0, 1, nil, errorsx.ErrUserNotExist},
 		{model.GroupRoleOwner, model.GroupRoleOwner, 2, nil, errorsx.ErrAlreadyInGroup},
@@ -373,7 +373,7 @@ func TestInvite(t *testing.T) {
 				msg := <-mock.Message
 				message.Time = msg.Time
 				message.Body = "test1 邀请你加入群聊 (1000000001)"
-				message.Data = gid
+				message.Extra = gid
 				assert.Equal(t, message, msg)
 			} else {
 				assert.Nil(t, msg)
@@ -385,7 +385,7 @@ func TestInvite(t *testing.T) {
 	members[1].Role = model.GroupRoleApplied
 	mockg.EXPECT().QueryRole(gomock.Any(), gomock.Any()).Return(members, nil).Times(2)
 	t.Run("invite failed", func(t *testing.T) {
-		mockg.EXPECT().UpdateStatus(gomock.Any()).Return(errors.New("error"))
+		mockg.EXPECT().UpdateStatus(gomock.Any()).Return(errorsx.HandleError(errors.New("error")))
 		msg, err := g.Invite(uid, uid+1, gid)
 		assert.Equal(t, errorsx.ErrFailed, err)
 		assert.Nil(t, msg)
@@ -426,8 +426,8 @@ func TestApply(t *testing.T) {
 		{model.GroupRoleMember, nil, errorsx.ErrAlreadyInGroup, false},
 		{model.GroupRoleBan, nil, errorsx.ErrBanned, false},
 		{-9999, nil, errorsx.ErrInvalidParams, false},
-		{0, errors.New("error"), errorsx.ErrFailed, true},
-		{model.GroupRoleApplied, errors.New("error"), errorsx.ErrFailed, true},
+		{0, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
+		{model.GroupRoleApplied, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleApplied, errorsx.ErrNoAffectedRows, errorsx.ErrFailed, true},
 		{model.GroupRoleApplied, nil, nil, true},
 		{0, nil, nil, true},
@@ -563,11 +563,11 @@ func TestAcceptInvite(t *testing.T) {
 		{MemberID: uid + 1, Username: "test2"},
 	}
 	msg = ws.ChatMsg{
-		Type: ws.System,
-		From: uid,
-		Time: time.Now().Add(-time.Second).UnixMilli(),
-		To:   uid + 1,
-		Data: float64(gid),
+		Type:  ws.System,
+		From:  uid,
+		Time:  time.Now().Add(-time.Second).UnixMilli(),
+		To:    uid + 1,
+		Extra: float64(gid),
 	}
 
 	tests := []struct {
@@ -585,9 +585,9 @@ func TestAcceptInvite(t *testing.T) {
 		{model.GroupRoleOwner, 999, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, -999, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, model.GroupRoleApplied, nil, errorsx.ErrInvalidParams, false},
-		{model.GroupRoleOwner, model.GroupRoleInvited, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleOwner, model.GroupRoleInvited, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleOwner, model.GroupRoleInvited, nil, nil, true},
-		{model.GroupRoleOwner, 0, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleOwner, 0, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleOwner, 0, nil, nil, true},
 		{model.GroupRoleAdmin, 0, nil, nil, true},
 	}
@@ -702,7 +702,7 @@ func TestRejectApply(t *testing.T) {
 		{model.GroupRoleOwner, model.GroupRoleAdmin, nil, errorsx.ErrAlreadyInGroup, false},
 		{model.GroupRoleOwner, model.GroupRoleMember, nil, errorsx.ErrAlreadyInGroup, false},
 		{model.GroupRoleOwner, 0, nil, nil, false},
-		{model.GroupRoleOwner, model.GroupRoleApplied, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleOwner, model.GroupRoleApplied, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleOwner, model.GroupRoleApplied, nil, nil, true},
 		{model.GroupRoleAdmin, model.GroupRoleApplied, nil, nil, true},
 	}
@@ -752,7 +752,7 @@ func TestLeave(t *testing.T) {
 		{model.GroupRoleInvited, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, nil, errorsx.ErrOwnerCantLeave, false},
 		{model.GroupRoleBan, nil, errorsx.ErrBanned, false},
-		{model.GroupRoleMember, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleMember, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleMember, nil, nil, true},
 		{model.GroupRoleAdmin, nil, nil, true},
 	}
@@ -806,7 +806,7 @@ func TestKick(t *testing.T) {
 		{model.GroupRoleOwner, -999, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, model.GroupRoleInvited, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, model.GroupRoleApplied, nil, errorsx.ErrInvalidParams, false},
-		{model.GroupRoleOwner, model.GroupRoleMember, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleOwner, model.GroupRoleMember, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleOwner, model.GroupRoleMember, nil, nil, true},
 		{model.GroupRoleAdmin, model.GroupRoleMember, nil, nil, true},
 	}
@@ -860,7 +860,7 @@ func TestHandOverOwner(t *testing.T) {
 		{model.GroupRoleOwner, 999, nil, errorsx.ErrNotInGroup, false},
 		{model.GroupRoleOwner, -999, nil, errorsx.ErrNotInGroup, false},
 		{model.GroupRoleOwner, model.GroupRoleOwner, nil, errorsx.ErrNotInGroup, false},
-		{model.GroupRoleOwner, model.GroupRoleMember, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleOwner, model.GroupRoleMember, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleOwner, model.GroupRoleMember, errorsx.ErrPermissionDenied, errorsx.ErrPermissiondenied, true},
 		{model.GroupRoleOwner, model.GroupRoleMember, errorsx.ErrNoAffectedRows, errorsx.ErrNotInGroup, true},
 		{model.GroupRoleOwner, model.GroupRoleMember, nil, nil, true},
@@ -921,7 +921,7 @@ func TestModifyAdmin(t *testing.T) {
 		{model.GroupRoleOwner, model.GroupRoleApplied, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, model.GroupRoleInvited, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, model.GroupRoleAdmin, nil, errorsx.ErrAlreadyAdmin, false},
-		{model.GroupRoleOwner, model.GroupRoleMember, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleOwner, model.GroupRoleMember, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleOwner, model.GroupRoleMember, nil, nil, true},
 	}
 
@@ -968,7 +968,7 @@ func TestModifyAdmin(t *testing.T) {
 		{model.GroupRoleOwner, model.GroupRoleApplied, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, model.GroupRoleInvited, nil, errorsx.ErrInvalidParams, false},
 		{model.GroupRoleOwner, model.GroupRoleMember, nil, errorsx.ErrAlreadyMember, false},
-		{model.GroupRoleOwner, model.GroupRoleAdmin, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleOwner, model.GroupRoleAdmin, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleOwner, model.GroupRoleAdmin, nil, nil, true},
 	}
 
@@ -1023,7 +1023,7 @@ func TestAdminResign(t *testing.T) {
 		{model.GroupRoleInvited, nil, errorsx.ErrNotInGroup, false},
 		{model.GroupRoleOwner, nil, errorsx.ErrHandOverOwnerFirst, false},
 		{model.GroupRoleMember, nil, errorsx.ErrNotAdmin, false},
-		{model.GroupRoleAdmin, errors.New("error"), errorsx.ErrFailed, true},
+		{model.GroupRoleAdmin, errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{model.GroupRoleAdmin, nil, nil, true},
 	}
 

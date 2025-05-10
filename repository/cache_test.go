@@ -20,11 +20,10 @@ import (
 )
 
 var (
-	cache  repo.Cache
-	u      *mock.MockUserRepository
-	g      *mock.MockGroupRepository
-	client *redis.Client
-	// cfg    config.Config
+	cache   repo.Cache
+	u       *mock.MockUserRepository
+	g       *mock.MockGroupRepository
+	client  *redis.Client
 	service *mock.MockService
 )
 
@@ -53,14 +52,14 @@ func closeConnection() {
 	client.Close()
 }
 
-func TestCacheMessageAndGet(t *testing.T) {
+func TestOfflineMessages(t *testing.T) {
 	setupCache(t)
 	defer closeConnection()
 
 	count := 100
 	// get empty cache
 	t.Run("cache messages are null", func(t *testing.T) {
-		result, err := cache.GetMessage(uint(1e8))
+		result, err := cache.GetOfflineMessages(uint(1e8))
 		assert.NoError(t, err)
 		assert.Empty(t, result)
 	})
@@ -213,7 +212,7 @@ func generateCacheMessage(count int) []*ws.ChatMsg {
 		msg := message
 		msg.To = id
 		expected[i] = &msg
-		cache.CacheMessage(id, msg)
+		cache.StoreOfflineMessage(id, msg)
 	}
 	// refresh cache
 	cache.Flush()
@@ -224,7 +223,7 @@ func verifyCacheMessage(t *testing.T, count int, expected []*ws.ChatMsg) {
 	result := make([]*ws.ChatMsg, 0, count)
 	for i := range expected {
 		id := expected[i].To
-		data, err := cache.GetMessage(id)
+		data, err := cache.GetOfflineMessages(id)
 		assert.NoError(t, err)
 		for _, d := range data {
 			var msg *ws.ChatMsg
@@ -241,40 +240,39 @@ func removeMessage(count int, expected *[]*ws.ChatMsg) {
 	for i := range count {
 		id := (*expected)[i].To
 		msg, _ := json.Marshal((*expected)[i])
-		cache.RemoveMessage(id, string(msg))
+		cache.RemoveOfflineMessage(id, string(msg))
 	}
 	cache.Flush()
 	*expected = (*expected)[count:]
 }
 
-func TestCacheUnackMessage(t *testing.T) {
+func TestPendingMessages(t *testing.T) {
 	setupCache(t)
 	defer closeConnection()
 
-	c := cache.(repo.BlockCache)
 	count := 10
-	msgs := make([]ws.HandleBlockMsg, count)
-	t.Run("cache unack messages", func(t *testing.T) {
-		service.Config().SetCommon("resend_interval", time.Nanosecond.String())
+	msgs := make([]ws.ChatMsg, count)
+	t.Run("cache pending messages", func(t *testing.T) {
 		for i := range count {
-			msg := ws.HandleBlockMsg{
-				Type: ws.HandleBlock,
+			msg := ws.ChatMsg{
+				Type: ws.UpdateBlackList,
 				From: uint(1e5 + 1),
 				To:   uint(1e5+1) + uint(i+1),
-				Time: time.Now().UnixMilli(),
+				Time: time.Now().Add(-3 * time.Second).UnixMilli(),
 			}
 			msgs[i] = msg
-			c.CacheUnackMessage(service.Config().Common().ResendInterval(), msg)
+			cache.StorePendingMessage(msg, msg.Time)
+
 		}
 		cache.Flush()
 	})
 
-	t.Run("get unack messages", func(t *testing.T) {
-		result, err := c.GetUnAck()
+	t.Run("get pending messages", func(t *testing.T) {
+		result, err := cache.GetPendingMessages()
 		assert.NoError(t, err)
 		assert.Equal(t, len(msgs), len(result))
 		for i, m := range result {
-			var msg ws.HandleBlockMsg
+			var msg ws.ChatMsg
 			json.Unmarshal([]byte(m), &msg)
 			msgs[i].Time = msg.Time
 			assert.Equal(t, msgs[i], msg)
@@ -283,10 +281,10 @@ func TestCacheUnackMessage(t *testing.T) {
 
 	t.Run("ack messages", func(t *testing.T) {
 		for _, m := range msgs {
-			c.Ack(m.From, m.To, m)
+			cache.RemovePendingMessage(m.ID, m.To, m.Time)
 		}
 		cache.Flush()
-		result, err := c.GetUnAck()
+		result, err := cache.GetPendingMessages()
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(result))
 	})

@@ -210,15 +210,15 @@ func (f *FriendService) sendMessage(ctx *sendMessageContext,
 func (f *FriendService) sendToWebsocket(msg *ws.ChatMsg) error {
 	hub := f.service.Hub()
 	if hub == nil {
-		f.cacheMessage(msg.To, msg)
+		f.storeOfflineMessage(msg.To, msg)
 		return errorsx.ErrMessagePushServiceUnavailabel
 	}
 	hub.SendToChat(msg)
 	return nil
 }
 
-func (f *FriendService) cacheMessage(id uint, msg any) {
-	f.service.Cache().CacheMessage(id, msg)
+func (f *FriendService) storeOfflineMessage(id uint, msg any) {
+	f.service.Cache().StoreOfflineMessage(id, msg)
 }
 
 func (f *FriendService) getUsername() sendMessageFunctions {
@@ -411,16 +411,17 @@ func (f *FriendService) Block(from, to uint) error {
 		return err
 	}
 	// 先发送给对方，让前端处理
-	msg := &ws.HandleBlockMsg{
-		Type:  ws.HandleBlock,
-		From:  from,
-		To:    to,
-		Block: true,
+	msg := &ws.ChatMsg{
+		Type: ws.UpdateBlackList,
+		From: from,
+		To:   to,
+		// Time:  time.Now().UnixMilli(),
+		Extra: true,
 	}
 	var err error
 	hub := f.service.Hub()
 	if hub == nil {
-		f.cacheMessage(msg.To, msg)
+		f.storeOfflineMessage(msg.To, msg)
 		err = errorsx.ErrHandleSuccessed
 	} else {
 		hub.SendUpdateBlockedListNotify(msg)
@@ -453,15 +454,16 @@ func (f *FriendService) Unblock(from, to uint) error {
 
 	// 发送给对方，前端处理
 	var err error
-	msg := &ws.HandleBlockMsg{
-		Type:  ws.HandleBlock,
-		From:  from,
-		To:    to,
-		Block: false,
+	msg := &ws.ChatMsg{
+		Type: ws.UpdateBlackList,
+		From: from,
+		To:   to,
+		// Time:  time.Now().UnixMilli(),
+		Extra: false,
 	}
 	hub := f.service.Hub()
 	if hub == nil {
-		f.cacheMessage(msg.To, msg)
+		f.storeOfflineMessage(msg.To, msg)
 		err = errorsx.ErrHandleSuccessed
 	} else {
 		hub.SendUpdateBlockedListNotify(msg)

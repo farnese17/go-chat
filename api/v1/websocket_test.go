@@ -16,6 +16,7 @@ import (
 	"github.com/farnese17/chat/service/model"
 	"github.com/farnese17/chat/utils/errorsx"
 	ws "github.com/farnese17/chat/websocket"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 )
@@ -81,7 +82,7 @@ func TestRegisterClientToWs(t *testing.T) {
 	assert.Equal(t, testDataCount, s.Hub().Count())
 }
 
-func TestSentCacheMessage(t *testing.T) {
+func TestSendOfflineMessages(t *testing.T) {
 	startWebsocket()
 	clearWebsocket()
 	defer shutdownWebsocket()
@@ -90,23 +91,26 @@ func TestSentCacheMessage(t *testing.T) {
 	waitingForClientsRegisterComplete(t, 1)
 	client := clients[100001]
 
-	for i := 0; i < testCacheCount; i++ { // 发送离线消息
-		for i := 1; i < testDataCount; i++ {
+	// 发送离线消息
+	msgTime := genMsgTime()
+	id := make([]uint, testDataCount)
+	for i := 1; i < testDataCount; i++ {
+		to := uint(1e5) + uint(i+1)
+		id[i] = to
+		for j := 0; j < testCacheCount; j++ {
 			msg := ws.ChatMsg{
 				Type: ws.Chat,
 				From: 100001,
 				Body: "abcd",
-				Time: time.Now().UnixNano(),
-				To:   uint(1e5) + uint(i+1)}
+				Time: msgTime,
+				To:   to,
+			}
 			send(t, ws.Chat, msg, client)
 		}
 	}
+	s.Cache().Flush()
 
 	// 等待缓存完成
-	id := make([]uint, testDataCount)
-	for i := 1; i < testDataCount; i++ {
-		id[i] = uint(1e5) + uint(i+1)
-	}
 	if !waitingForCacheComplete(testCacheCount, id[1:]) {
 		t.Error("cache not ready")
 	}
@@ -115,7 +119,7 @@ func TestSentCacheMessage(t *testing.T) {
 	wg := sync.WaitGroup{}
 	for i := 1; i < testDataCount; i++ {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 			id := uint(1e5) + uint(i+1)
 			t.Run(fmt.Sprintf("resend cache message %d", id), func(t *testing.T) {
@@ -129,7 +133,7 @@ func TestSentCacheMessage(t *testing.T) {
 					To:   id}
 				conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 				for {
-					receivingChatMessage(t, conn, expected)
+					receiveChatMessage(t, conn, expected)
 					count-- // 计数
 					if count == 0 {
 						break
@@ -137,14 +141,45 @@ func TestSentCacheMessage(t *testing.T) {
 				}
 				assert.Equalf(t, 0, count, "Expected %d messages, but %d got %d", testCacheCount, id, testCacheCount-count)
 			})
-		}()
+		}(i)
 	}
 	wg.Wait()
 
-	// 等待缓存清空
+	// 等待缓存离线消息清空
 	if !waitingForCacheComplete(0, id[1:]) {
 		t.Error("cache not clear")
 	}
+
+	// 接收ack消息
+	t.Run("receive ack messages", func(t *testing.T) {
+		count := testDataCount*testCacheCount - testCacheCount
+		conn := clients[100001]
+		expectedAck := ws.AckMsg{
+			Type: ws.Ack,
+			To:   100001,
+		}
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		for i := 0; i < count; i++ {
+			_, p, err := conn.ReadMessage()
+			assert.NoError(t, err)
+			var message ws.Message
+			err = json.Unmarshal(p, &message)
+			assert.NoError(t, err)
+			assert.Equal(t, ws.Ack, message.Type)
+			bodyData, err := json.Marshal(message.Body)
+			assert.NoError(t, err)
+			var msg ws.AckMsg
+			err = json.Unmarshal(bodyData, &msg)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, msg.ID)
+			expectedAck.ID = msg.ID
+			expectedAck.Time = msg.Time
+			assert.Equal(t, expectedAck, msg)
+		}
+	})
+
+	// 确保挂起消息不为空
+	checkPendingMessage(t)
 }
 
 func TestWebsocketChat(t *testing.T) {
@@ -171,9 +206,38 @@ func TestWebsocketChat(t *testing.T) {
 					Body: "abcd",
 					To:   id,
 				}
+				expectedAck := ws.AckMsg{
+					Type: ws.Ack,
+					To:   id,
+				}
 				conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 				for {
-					receivingChatMessage(t, conn, expected)
+					_, p, err := conn.ReadMessage()
+					assert.NoError(t, err)
+					var got ws.Message
+					err = json.Unmarshal(p, &got)
+					assert.NoError(t, err)
+					if got.Type == ws.Chat {
+						var msg ws.ChatMsg
+						err := json.Unmarshal(got.Body, &msg)
+						assert.NoError(t, err)
+						assert.NotEmpty(t, msg.ID)
+						assert.NotEmpty(t, msg.From)
+						assert.NotEmpty(t, msg.Time)
+						expected.ID = msg.ID
+						expected.From = msg.From
+						expected.Time = msg.Time
+						assert.Equal(t, expected, msg)
+					} else if got.Type == ws.Ack {
+						var msg ws.AckMsg
+						err := json.Unmarshal(got.Body, &msg)
+						assert.NoError(t, err)
+						assert.NotEmpty(t, msg.ID)
+						expectedAck.ID = msg.ID
+						assert.Equal(t, expectedAck, msg)
+					} else {
+						t.Errorf("received unexpected message: %s", string(p))
+					}
 					count--
 					if count == 0 {
 						break
@@ -181,16 +245,17 @@ func TestWebsocketChat(t *testing.T) {
 				}
 				assert.Equal(t, 0, count)
 			})
-		}(id, testDataCount-1)
+		}(id, (len(clients)-1)*2)
 	}
 
+	msgTime := genMsgTime()
 	for from, conn := range clients {
 		wg.Add(1)
 		msg := ws.ChatMsg{
 			Type: ws.Chat,
 			From: from,
 			Body: "abcd",
-			Time: time.Now().UnixMilli(),
+			Time: msgTime,
 		}
 		go func(conn *websocket.Conn, msg ws.ChatMsg) {
 			defer wg.Done()
@@ -206,6 +271,8 @@ func TestWebsocketChat(t *testing.T) {
 		}(conn, msg)
 	}
 	wg.Wait()
+	s.Cache().Flush()
+	checkPendingMessage(t)
 }
 
 func TestWebsocketBroadcast(t *testing.T) {
@@ -225,22 +292,53 @@ func TestWebsocketBroadcast(t *testing.T) {
 	}
 	s.Cache().Flush()
 
-	expected := ws.ChatMsg{
-		Type: ws.Broadcast,
-		From: 100001,
-		To:   uint(1e9 + 1),
-		Time: time.Now().UnixMilli(),
-		Body: "abcd",
-	}
 	wg := sync.WaitGroup{}
 	for id, conn := range clients {
 		wg.Add(1)
-		go func(conn *websocket.Conn, count int) {
+		go func(id uint, conn *websocket.Conn, count int) {
 			defer wg.Done()
-			t.Run(fmt.Sprintf("%d receiving broadcast message", id), func(t *testing.T) {
+			if id == 100001 {
+				count *= 2
+			}
+			t.Run(fmt.Sprintf("%d receive broadcast message", id), func(t *testing.T) {
+				expected := ws.ChatMsg{
+					Type:  ws.Broadcast,
+					From:  100001,
+					To:    id,
+					Body:  "abcd",
+					Extra: 1e9 + 1,
+				}
+				expectedAck := ws.AckMsg{
+					Type: ws.Ack,
+					To:   id,
+				}
 				conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 				for {
-					receivingChatMessage(t, conn, expected)
+					// receiveChatMessage(t, conn, expected)
+					_, p, err := conn.ReadMessage()
+					assert.NoError(t, err)
+					var got ws.Message
+					err = json.Unmarshal(p, &got)
+					assert.NoError(t, err)
+					if got.Type == ws.Broadcast {
+						var msg ws.ChatMsg
+						err := json.Unmarshal(got.Body, &msg)
+						assert.NoError(t, err)
+						assert.NotEmpty(t, msg.ID)
+						assert.NotEmpty(t, msg.Time)
+						expected.ID = msg.ID
+						expected.Time = msg.Time
+						assert.Equal(t, expected, msg)
+					} else if got.Type == ws.Ack {
+						var msg ws.AckMsg
+						err := json.Unmarshal(got.Body, &msg)
+						assert.NoError(t, err)
+						assert.NotEmpty(t, msg.ID)
+						expectedAck.ID = msg.ID
+						assert.Equal(t, expectedAck, msg)
+					} else {
+						t.Errorf("received unexpected message: %s", string(p))
+					}
 					count--
 					if count == 0 {
 						break
@@ -248,58 +346,25 @@ func TestWebsocketBroadcast(t *testing.T) {
 				}
 				assert.Equal(t, 0, count)
 			})
-		}(conn, len(clients)/10)
+		}(id, conn, len(clients)/10)
 	}
 
-	for range len(clients) / 10 {
-		t.Run("send broadcast message", func(t *testing.T) {
-			send(t, ws.Broadcast, expected, clients[100001])
-		})
-	}
-	wg.Wait()
-}
-
-func TestReturnUnack(t *testing.T) {
-	startWebsocket()
-	clearWebsocket()
-	defer shutdownWebsocket()
-
-	id := uint(1e5 + 1)
-	registerClientToWs(t, id)
-	waitingForClientsRegisterComplete(t, 1)
-
-	msg := ws.ChatMsg{
-		Type: ws.Broadcast,
-		From: id,
-		To:   id + 1,
-		Time: time.Now().UnixMilli(),
-	}
-
-	conn := clients[id]
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		expected := ws.ChatMsg{
-			Type: ws.Ack,
-			From: id,
-			To:   id,
-			Time: msg.Time,
-			Data: false,
+	t.Run("send broadcast message", func(t *testing.T) {
+		msg := ws.ChatMsg{
+			Type: ws.Broadcast,
+			From: 100001,
+			To:   uint(1e9 + 1),
+			Body: "abcd",
+			Time: genMsgTime(),
 		}
-		t.Run("send successed,but got ack message", func(t *testing.T) {
-			_, p, err := conn.ReadMessage()
-			assert.NoError(t, err)
-			var result ws.Message
-			json.Unmarshal(p, &result)
-			var body ws.ChatMsg
-			json.Unmarshal(result.Body, &body)
-			assert.Equal(t, expected, body)
-		})
-	}()
+		for range len(clients) / 10 {
+			send(t, ws.Broadcast, msg, clients[100001])
+		}
+	})
 
-	s.Hub().SendDeleteGroupNotify(&msg)
 	wg.Wait()
+
+	checkPendingMessage(t)
 }
 
 func TestWebsocketStop(t *testing.T) {
@@ -313,6 +378,7 @@ func TestWebsocketStop(t *testing.T) {
 	}
 	waitingForClientsRegisterComplete(t, testDataCount)
 
+	// 接收服务关闭通知
 	wg := sync.WaitGroup{}
 	for id, conn := range clients {
 		wg.Add(1)
@@ -346,38 +412,48 @@ func TestSendUpdateNotify(t *testing.T) {
 	}
 	waitingForClientsRegisterComplete(t, testDataCount)
 
-	expected := ws.HandleBlockMsg{
-		Type:  ws.HandleBlock,
+	expected := &ws.ChatMsg{
+		Type:  ws.UpdateBlackList,
 		From:  sender,
-		Block: true,
+		Extra: true,
 	}
 	wg := sync.WaitGroup{}
 	for id, conn := range clients {
 		wg.Add(1)
-		go func(id uint, conn *websocket.Conn, expected ws.HandleBlockMsg) {
+		expected.To = id
+		go func(id uint, conn *websocket.Conn, expected ws.ChatMsg) {
 			defer wg.Done()
-			expected.To = id
 			t.Run(fmt.Sprintf("%d receive notify", id), func(t *testing.T) {
 				conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 				_, p, err := conn.ReadMessage()
 				assert.NoError(t, err)
 				var message ws.Message
 				json.Unmarshal(p, &message)
-				var msg ws.HandleBlockMsg
+				var msg ws.ChatMsg
 				json.Unmarshal(message.Body, &msg)
+				assert.NotEmpty(t, msg.ID)
 				assert.NotEmpty(t, msg.Time)
+				expected.ID = msg.ID
 				expected.Time = msg.Time
 				assert.Equal(t, expected, msg)
 			})
-		}(id, conn, expected)
+		}(id, conn, *expected)
 	}
 
+	msgTime := genMsgTime()
 	for id := range clients {
-		msg := expected
-		msg.To = id
+		msg := ws.ChatMsg{
+			Type:  ws.UpdateBlackList,
+			From:  sender,
+			To:    id,
+			Extra: true,
+			Time:  msgTime,
+		}
 		s.Hub().SendUpdateBlockedListNotify(&msg)
 	}
 	wg.Wait()
+
+	checkPendingMessage(t)
 }
 
 func TestACkMessage(t *testing.T) {
@@ -385,69 +461,86 @@ func TestACkMessage(t *testing.T) {
 	clearWebsocket()
 	defer shutdownWebsocket()
 
+	var msgIDs []string
+	msgTime := genMsgTime()
 	// register and set cache
-	cache := s.Cache().(repository.BlockCache)
 	for i := range testDataCount {
 		id := uint(1e5+1) + uint(i)
 		go registerClientToWs(t, id)
-		msg := ws.HandleBlockMsg{
-			Type: ws.HandleBlock,
+		msgid := uuid.NewString()
+		msg := ws.ChatMsg{
+			ID:   msgid,
+			Type: ws.Chat,
 			To:   id,
 		}
-		cache.CacheUnackMessage(time.Duration(time.Now().Add(time.Minute).UnixMilli()), msg)
+		msgIDs = append(msgIDs, msgid)
+		s.Cache().StorePendingMessage(msg, msgTime)
 	}
 	s.Cache().Flush()
 	waitingForClientsRegisterComplete(t, testDataCount)
 
 	// send ack message
-	for id, conn := range clients {
-		body, _ := json.Marshal(ws.HandleBlockMsg{
-			Type: ws.HandleBlock,
+	for i := range testDataCount {
+		msgid := msgIDs[i]
+		id := uint(1e5+1) + uint(i)
+		body, _ := json.Marshal(ws.AckMsg{
+			ID:   msgid,
+			Type: ws.Ack,
 			To:   id,
-			Ack:  true})
+			Time: msgTime,
+		})
 
 		msg := ws.Message{
-			Type: ws.HandleBlock,
+			Type: ws.Ack,
 			Body: body,
 		}
+		conn := clients[id]
 		err := conn.WriteJSON(msg)
 		assert.NoError(t, err)
 	}
 
-	// waiting for remove cache
+	// waiting for remove pending messages
 	ticker := time.NewTicker(time.Second * 5)
 	defer ticker.Stop()
-outerLook:
+
+outerLoop:
 	for {
 		select {
 		case <-ticker.C:
 			t.Error("waiting for remove cache timeout")
-			break outerLook
+			break outerLoop
 		default:
-			msgs, err := cache.GetUnAck()
+			msgs, err := s.Cache().GetPendingMessages()
 			assert.NoError(t, err)
 			if len(msgs) == 0 {
-				break outerLook
+				break outerLoop
 			}
 			time.Sleep(time.Millisecond * 20)
 		}
 	}
 }
 
-func TestResendUnackMessage(t *testing.T) {
+func TestResendPendingMessage(t *testing.T) {
 	startWebsocket()
 	clearWebsocket()
 	defer shutdownWebsocket()
 
-	cache := s.Cache().(repository.BlockCache)
+	// 调整重发间隔，减少测试时间
+	s.Config().SetCommon("check_ack_timeout", "10ms")
+
+	msgs := make(map[uint]ws.ChatMsg)
+	msgTime := genMsgTime()
 	for i := range testDataCount {
 		id := uint(1e5+1) + uint(i)
 		go registerClientToWs(t, id)
-		msg := ws.HandleBlockMsg{
-			Type: ws.HandleBlock,
+		msg := ws.ChatMsg{
+			ID:   uuid.NewString(),
+			Type: ws.Chat,
 			To:   id,
+			Time: msgTime,
 		}
-		cache.CacheUnackMessage(0, msg)
+		msgs[id] = msg
+		s.Cache().StorePendingMessage(msg, msgTime)
 	}
 	s.Cache().Flush()
 	waitingForClientsRegisterComplete(t, testDataCount)
@@ -457,24 +550,30 @@ func TestResendUnackMessage(t *testing.T) {
 		wg.Add(1)
 		go func(id uint, conn *websocket.Conn) {
 			defer wg.Done()
-			expected := ws.HandleBlockMsg{
-				Type: ws.HandleBlock,
-				To:   id,
-			}
-			t.Run(fmt.Sprintf("%d receive resend notify", id), func(t *testing.T) {
-				conn.SetReadDeadline(time.Now().Add(time.Second * 10))
-				_, p, err := conn.ReadMessage()
-				assert.NoError(t, err)
-				var message ws.Message
-				json.Unmarshal(p, &message)
-				var msg ws.HandleBlockMsg
-				json.Unmarshal(message.Body, &msg)
-				assert.Equal(t, expected, msg)
+			expected := msgs[id]
+			t.Run(fmt.Sprintf("%d receive resend messages", id), func(t *testing.T) {
+				count := 3
+				for ; count > 0; count-- {
+					conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+					_, p, err := conn.ReadMessage()
+					assert.NoError(t, err)
+					var message ws.Message
+					json.Unmarshal(p, &message)
+					var msg ws.ChatMsg
+					json.Unmarshal(message.Body, &msg)
+					assert.Equal(t, expected, msg)
+				}
+				assert.Zero(t, count)
 			})
 		}(id, conn)
 	}
-
 	wg.Wait()
+
+	// 确保批大小足够
+	s.Config().SetCommon("resend_batch_size", fmt.Sprintf("%d", testDataCount+1))
+	data, err := s.Cache().GetPendingMessages()
+	assert.NoError(t, err)
+	assert.Equal(t, testDataCount, len(data))
 }
 
 func send(t *testing.T, msgType int, msg any, conn *websocket.Conn) {
@@ -487,16 +586,25 @@ func send(t *testing.T, msgType int, msg any, conn *websocket.Conn) {
 	assert.NoError(t, err)
 }
 
-func receivingChatMessage(t *testing.T, conn *websocket.Conn, expected ws.ChatMsg) {
+func receiveChatMessage(t *testing.T, conn *websocket.Conn, expected ws.ChatMsg) {
 	_, p, err := conn.ReadMessage()
 	assert.NoError(t, err)
 	var message ws.Message
 	json.Unmarshal(p, &message)
+	assert.Equal(t, expected.Type, message.Type)
 	var msg ws.ChatMsg
 	json.Unmarshal(message.Body, &msg)
+	fixMessageID(t, &expected, &msg)
 	fixMessageTime(t, &expected, &msg)
 	fixExecptedID(t, &expected, &msg)
 	assert.Equal(t, expected, msg)
+}
+
+func fixMessageID(t *testing.T, expected, msg *ws.ChatMsg) {
+	if expected.ID == "" {
+		assert.NotEmpty(t, msg.ID)
+		expected.ID = msg.ID
+	}
 }
 
 func fixExecptedID(t *testing.T, expected, msg *ws.ChatMsg) {
@@ -562,25 +670,15 @@ func checkCacheStatus(count int, id uint) bool {
 	return c == int64(count)
 }
 
-func checkCache(id []uint) {
-	s.Cache().Flush()
-	cache := s.Cache().(repository.TestableCache)
-	for i := range id {
-		key := model.CacheMessage + strconv.FormatUint(uint64(id[i]), 10)
-		count := cache.CountSet(key)
-		fmt.Printf("id: %d, count: %d\n", id[i], count)
-	}
-}
-
 func clearWebsocket() {
 	clearCacheMessage()
-	clearWaitingAckMessage()
+	clearPendingMessages()
 }
 
 func clearCacheMessage() {
 	for i := range testDataCount {
 		id := uint(1e5) + uint(i+1)
-		key := model.CacheMessage + strconv.FormatUint(uint64(id), 10)
+		key := fmt.Sprintf("%s%d", model.CacheMessage, id)
 		s.Cache().Remove(key)
 	}
 	s.Cache().Flush()
@@ -589,20 +687,24 @@ func clearCacheMessage() {
 func clearClients() {
 	mu.Lock()
 	defer mu.Unlock()
-	// for _, conn := range clients {
-	// 	conn.Close()
-	// }
 	clients = make(map[uint]*websocket.Conn)
 }
 
-func clearWaitingAckMessage() {
-	cache := s.Cache().(repository.BlockCache)
-	messages, err := cache.GetUnAck()
-	if err != nil {
-		panic(err)
-	}
-	for _, m := range messages {
-		cache.RemoveBlockMessage(m)
-	}
+func clearPendingMessages() {
+	s.Cache().Remove(model.CacheMessagePending)
 	s.Cache().Flush()
+}
+
+func checkPendingMessage(t *testing.T) {
+	t.Run("pending messages not empty", func(t *testing.T) {
+		s.Cache().Flush()
+		msgs, err := s.Cache().GetPendingMessages()
+		assert.NoError(t, err)
+		assert.NotZero(t, len(msgs))
+	})
+}
+
+func genMsgTime() int64 {
+	return time.Now().Add(-5 * time.Second).UnixMilli()
+
 }

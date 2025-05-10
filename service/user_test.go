@@ -70,7 +70,7 @@ func setup(t *testing.T) {
 	mockg = mock.NewMockGroupRepository(ctrl)
 	mockc = mock.NewMockCache(ctrl)
 	hub = mock.NewMockHub()
-	hub.Run()
+	go hub.Run()
 
 	s = mock.NewMockService(ctrl)
 	s.EXPECT().Config().Return(cfg).AnyTimes()
@@ -186,7 +186,7 @@ func TestDeleteUser(t *testing.T) {
 		expected error
 	}{
 		{errorsx.ErrForeignKeyViolatedGroup, errorsx.ErrHasGroupNeedHandOver},
-		{errors.New("error"), errorsx.ErrUnknownError},
+		{errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
 		{nil, nil},
 	}
 	for i, tt := range tests {
@@ -214,7 +214,7 @@ func TestSearchUser(t *testing.T) {
 		{"100000", nil, errorsx.ErrInvalidParams, false},
 		{"test", nil, errorsx.ErrInvalidParams, false},
 		{"110000", errorsx.ErrRecordNotFound, errorsx.ErrUserNotExist, true},
-		{"100001", errors.New("error"), errorsx.ErrFailed, true},
+		{"100001", errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{"100001", nil, nil, true},
 	}
 
@@ -241,7 +241,7 @@ func TestSearchUser(t *testing.T) {
 		{"100000", nil, errorsx.ErrInvalidParams, false},
 		{"test", nil, errorsx.ErrInvalidParams, false},
 		{"110000", errorsx.ErrRecordNotFound, errorsx.ErrUserNotExist, true},
-		{"100001", errors.New("error"), errorsx.ErrFailed, true},
+		{"100001", errorsx.HandleError(errors.New("error")), errorsx.ErrFailed, true},
 		{"100001", nil, nil, true},
 	}
 
@@ -269,8 +269,8 @@ func TestUpdateUserInfo(t *testing.T) {
 		mock        error
 		expected    error
 	}{
-		{"test", "username", errorsx.ErrRecordNotFound, errorsx.ErrUserNotExist},
-		{"test", "username", errors.New("error"), errorsx.ErrFailed},
+		{"test", "username", errorsx.ErrRecordNotFound, nil},
+		{"test", "username", errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
 		{"test", "username", nil, nil},
 		{"15015015015", "phone", errorsx.ErrDuplicateEntryPhone, errorsx.ErrPhoneRegistered},
 		{"15015015015", "phone", nil, nil},
@@ -314,7 +314,7 @@ func TestUpdatePassword(t *testing.T) {
 		{"123456", "123456", "123456", nil, nil, nil, errorsx.ErrSamePassword},
 		{"1234567", "123456", "1234567", nil, nil, nil, errorsx.ErrDifferentPassword},
 		{"123456", "aaaaaa", "aaaaaa", user, errorsx.ErrRecordNotFound, nil, errorsx.ErrUserNotExist},
-		{"123456", "aaaaaa", "aaaaaa", user, errors.New("error"), nil, errorsx.ErrFailed},
+		{"123456", "aaaaaa", "aaaaaa", user, errorsx.HandleError(errors.New("error")), nil, errorsx.ErrFailed},
 		{"123456", "aaaaaa", "aaaaaa", user, nil, nil, nil},
 	}
 

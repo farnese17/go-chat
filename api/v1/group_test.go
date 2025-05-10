@@ -233,12 +233,12 @@ func TestAcceptInvite(t *testing.T) {
 		}
 		msg.From = uint(1e5) + uint(idx)
 		msg.To = uint(1e5) + uint(i) + 1
-		msg.Data = int(1e9) + idx
+		msg.Extra = int(1e9) + idx
 		go func(msg ws.ChatMsg) {
 			defer wg.Done()
 			t.Run(fmt.Sprintf("accept invite %d", msg.To), func(t *testing.T) {
 				body, _ := json.Marshal(msg)
-				url := fmt.Sprintf("/api/v1/groups/%v/invitations/accept", msg.Data)
+				url := fmt.Sprintf("/api/v1/groups/%v/invitations/accept", msg.Extra)
 				resp := testNoError(t, route, url, "PUT", msg.To, bytes.NewBuffer(body))
 				assert.Nil(t, resp["data"])
 			})

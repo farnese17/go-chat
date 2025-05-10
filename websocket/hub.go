@@ -2,13 +2,13 @@ package websocket
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/farnese17/chat/config"
 	repo "github.com/farnese17/chat/repository"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -27,10 +27,10 @@ type HubInterface interface {
 	Unregister(c *Client)
 	SendToChat(message *ChatMsg)
 	SendToBroadcast(message *ChatMsg)
+	SendToAck(message *AckMsg)
 	SendToApply(message *ChatMsg)
-	SendDeleteGroupNotify(message *ChatMsg)
-	SendUpdateBlockedListNotify(message *HandleBlockMsg)
-	CacheMessage(message any, id uint)
+	SendUpdateBlockedListNotify(message *ChatMsg)
+	StoreOfflineMessage(message any, id uint)
 	Count() int
 	IsClosed() bool
 	Kick(id uint)
@@ -40,103 +40,102 @@ func NewHubInterface(service Service) HubInterface {
 	return NewHub(service)
 }
 
-const checkTimeoutMsgInterval = 500 * time.Millisecond
+type MessageContext struct {
+	Message any
+	To      []uint
+	Cache   bool
+	Pending bool
+	Sent    bool
+	Extra   map[string]any
+}
 
 type Hub struct {
-	clients    map[uint]*Client
-	register   chan *Client
-	unregister chan *Client
-	chat       chan *ChatMsg
-	broadcast  chan *ChatMsg
-	done       chan struct{}
-	closed     atomic.Bool
-	mu         sync.RWMutex
-	blocked    *blockedList
-	service    Service
+	clients     map[uint]*Client
+	register    chan *Client
+	unregister  chan *Client
+	chat        chan *ChatMsg
+	broadcast   chan *ChatMsg
+	done        chan struct{}
+	closed      atomic.Bool
+	mu          sync.RWMutex
+	service     Service
+	middlewares []MessageMiddleware
 }
 
 func NewHub(service Service) *Hub {
 	hub := &Hub{
-		clients:    make(map[uint]*Client),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		chat:       make(chan *ChatMsg),
-		broadcast:  make(chan *ChatMsg),
-		done:       make(chan struct{}),
-		closed:     atomic.Bool{},
-		mu:         sync.RWMutex{},
-		blocked:    newBlockedList(service),
-		service:    service,
+		clients:     make(map[uint]*Client),
+		register:    make(chan *Client),
+		unregister:  make(chan *Client),
+		chat:        make(chan *ChatMsg),
+		broadcast:   make(chan *ChatMsg),
+		done:        make(chan struct{}),
+		closed:      atomic.Bool{},
+		mu:          sync.RWMutex{},
+		service:     service,
+		middlewares: []MessageMiddleware{},
 	}
-	hub.Run()
+	hub.Use(Filter(hub))
+	hub.Use(AckMiddleware(hub))
+	go hub.Run()
+	go hub.resendPendingMessages()
 	return hub
 }
 
 func (h *Hub) Run() {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				h.service.Logger().Error("hub panic")
-			}
-		}()
-		for {
-			select {
-			case client := <-h.register:
-				h.mu.Lock()
-				h.clients[client.id] = client
-				h.mu.Unlock()
-				h.service.Logger().Info("User connected to websocket", zap.Uint("id", client.id))
-				go func(id uint) {
-					messages, err := h.service.Cache().GetMessage(id)
-					if err != nil {
-						return
-					}
-					for _, message := range messages {
-						var msg *ChatMsg
-						if err := json.Unmarshal([]byte(message), &msg); err != nil {
-							h.service.Logger().Warn("Failed to get cache message: invalid JSON", zap.Error(err))
-							continue
-						}
-						if h.Send(id, msg, false) {
-							h.service.Cache().RemoveMessage(id, message)
-						}
-					}
-				}(client.id)
-			case client := <-h.unregister:
-				h.mu.Lock()
-				delete(h.clients, client.id)
-				h.mu.Unlock()
-			case message := <-h.chat:
-				h.Send(message.To, message, true)
-			case message := <-h.broadcast:
-				uid, ok := message.Data.([]uint)
-				if !ok {
-					message.Type = Ack
-					message.Data = false
-					message.To = message.From
-					h.Send(message.To, message, true)
-					continue
-				}
-				message.Data = nil
-				for _, id := range uid {
-					if h.service.Cache().BFM().IsBanned(id) &&
-						h.service.Cache().IsBanPermanent(id) {
-						continue
-					}
-					h.Send(id, message, true)
-				}
-			case <-h.done:
-				close(h.register)
-				close(h.unregister)
-				close(h.chat)
-				close(h.broadcast)
-				h.service.Logger().Info("Hub Stoped...")
-				return
-			}
+	defer func() {
+		if r := recover(); r != nil {
+			h.service.Logger().Error("hub panic")
 		}
 	}()
-
-	go h.HandleBlock()
+	for {
+		select {
+		case client := <-h.register:
+			h.mu.Lock()
+			h.clients[client.id] = client
+			h.mu.Unlock()
+			h.service.Logger().Info("User connected to websocket", zap.Uint("id", client.id))
+			go func(id uint) {
+				messages, err := h.service.Cache().GetOfflineMessages(id)
+				if err != nil {
+					return
+				}
+				for _, message := range messages {
+					var msg *ChatMsg
+					if err := json.Unmarshal([]byte(message), &msg); err != nil {
+						h.service.Logger().Warn("Failed to get cache message: invalid JSON", zap.Error(err))
+						continue
+					}
+					ctx := &MessageContext{Message: msg, Pending: true, To: []uint{id}}
+					if h.sendDirect(ctx) {
+						h.service.Cache().RemoveOfflineMessage(id, message)
+					}
+				}
+			}(client.id)
+		case client := <-h.unregister:
+			h.mu.Lock()
+			delete(h.clients, client.id)
+			h.mu.Unlock()
+		case message := <-h.chat:
+			ctx := &MessageContext{Message: message, Cache: true, Pending: true, To: []uint{message.To}}
+			h.Send(ctx)
+		case message := <-h.broadcast:
+			uid, ok := message.Extra.([]uint)
+			if !ok {
+				continue
+			}
+			message.Extra = nil
+			ctx := &MessageContext{Message: message, Cache: true, Pending: true, To: uid}
+			h.Send(ctx)
+		case <-h.done:
+			close(h.register)
+			close(h.unregister)
+			close(h.chat)
+			close(h.broadcast)
+			h.service.Logger().Info("Hub Stoped...")
+			return
+		}
+	}
 }
 
 func (h *Hub) Stop() {
@@ -158,7 +157,6 @@ func (h *Hub) Stop() {
 		time.Sleep(time.Millisecond * 50)
 	}
 	close(h.done)
-	// hub = nil
 }
 func (h *Hub) Kick(id uint) {
 	h.mu.Lock()
@@ -170,6 +168,7 @@ func (h *Hub) Kick(id uint) {
 	c.closed = true
 	c.send <- CloseSignal{}
 }
+
 func (h *Hub) IsClosed() bool {
 	return h.closed.Load()
 }
@@ -179,45 +178,38 @@ func (h *Hub) Count() int {
 	defer h.mu.RUnlock()
 	return len(h.clients)
 }
+
 func (h *Hub) Register(c *Client) {
 	h.register <- c
 }
+
 func (h *Hub) Unregister(c *Client) {
 	h.unregister <- c
 }
+
 func (h *Hub) SendToChat(message *ChatMsg) {
-	if h.service.Cache().BFM().IsBanned(message.To) &&
-		h.service.Cache().IsBanPermanent(message.To) {
-		return
-	}
-	if h.service.Cache().BFM().IsMuted(message.From) &&
-		h.service.Cache().IsBanMuted(message.From) {
-		return
-	}
 	h.chat <- message
 }
+
 func (h *Hub) SendToBroadcast(message *ChatMsg) {
-	if h.service.Cache().BFM().IsMuted(message.From) &&
-		h.service.Cache().IsBanMuted(message.From) {
-		return
+	if message.Extra == nil {
+		uid, err := h.service.Cache().GetMembersAndCache(message.To)
+		if err != nil {
+			return
+		}
+		message.Extra = uid
 	}
-	uid, err := h.service.Cache().GetMembersAndCache(message.To)
-	if err != nil { // 返回消息未送达
-		message.Type = Ack
-		message.Data = false
-		message.To = message.From
-		h.Send(message.To, message, true)
-		return
-	}
-	message.Data = uid
+
 	h.broadcast <- message
 }
-func (h *Hub) SendUpdateBlockedListNotify(message *HandleBlockMsg) {
-	if message.Ack {
-		h.blocked.ack <- message
-	} else {
-		h.blocked.sendNotify <- message
-	}
+
+func (h *Hub) SendToAck(message *AckMsg) {
+	h.service.Cache().RemovePendingMessage(message.ID, message.To, message.Time)
+}
+
+func (h *Hub) SendUpdateBlockedListNotify(message *ChatMsg) {
+	ctx := &MessageContext{Message: message, Pending: true, To: []uint{message.To}}
+	h.Send(ctx)
 }
 
 func (h *Hub) SendToApply(message *ChatMsg) {
@@ -225,96 +217,239 @@ func (h *Hub) SendToApply(message *ChatMsg) {
 	if err != nil {
 		return
 	}
-	message.Data = uid
-	h.broadcast <- message
-}
-func (h *Hub) SendDeleteGroupNotify(message *ChatMsg) {
+	message.Extra = uid
 	h.broadcast <- message
 }
 
-type blockedList struct {
-	sendNotify chan *HandleBlockMsg
-	ack        chan *HandleBlockMsg
-	cache      repo.BlockCache
+// 返回值只对单发有效
+func (h *Hub) sendDirect(ctx *MessageContext) bool {
+	for _, id := range ctx.To {
+		h.mu.RLock()
+		c, ok := h.clients[id]
+		if ok && c.conn != nil {
+			// 群发下值复制避免后续迭代影响消息
+			var msgCopy any
+			if msg, ok := ctx.Message.(*ChatMsg); ok && msg.Type == Broadcast {
+				msgCopy = &ChatMsg{
+					ID:    msg.ID,
+					Type:  msg.Type,
+					From:  msg.From,
+					To:    id,
+					Body:  msg.Body,
+					Time:  msg.Time,
+					Extra: msg.To,
+				}
+			} else {
+				// 单发不受影响
+				msgCopy = ctx.Message
+			}
+			c.send <- msgCopy
+			h.mu.RUnlock()
+			/* 挂起消息
+			第一次发送必定会标为true
+			重发不会进入这个条件,只会缓存成离线消息后或者收到ack消息再删除挂起消息 */
+			if ctx.Pending {
+				// 统一使用指针
+				if msg, ok := msgCopy.(*ChatMsg); ok {
+					h.service.Cache().StorePendingMessage(msgCopy, msg.Time)
+				}
+				ctx.Sent = true
+			}
+			// 缓存成离线消息，视为发送成功
+		} else if ctx.Cache {
+			h.mu.RUnlock()
+			h.StoreOfflineMessage(ctx.Message, id)
+			ctx.Sent = true
+		} else { // 应视为用户离线
+			ctx.Sent = true
+		}
+	}
+	return ctx.Sent
 }
 
-func newBlockedList(service Service) *blockedList {
-	return &blockedList{
-		sendNotify: make(chan *HandleBlockMsg),
-		ack:        make(chan *HandleBlockMsg),
-		cache:      service.Cache().(repo.BlockCache),
+// 返回值只对单发有效
+func (h *Hub) Send(ctx *MessageContext) bool {
+	finalHandler := func(ctx *MessageContext) {
+		h.sendDirect(ctx)
+	}
+	handler := finalHandler
+	for i := len(h.middlewares) - 1; i >= 0; i-- {
+		middleware := h.middlewares[i]
+		next := handler
+		handler = func(ctx *MessageContext) {
+			middleware.Process(ctx, next)
+		}
+	}
+
+	handler(ctx)
+	return ctx.Sent
+}
+
+func (h *Hub) StoreOfflineMessage(message any, id uint) {
+	h.service.Cache().StoreOfflineMessage(id, message)
+}
+
+func (h *Hub) Use(middleware ...MessageMiddleware) {
+	h.middlewares = append(h.middlewares, middleware...)
+}
+
+type MessageMiddleware interface {
+	Process(ctx *MessageContext, next func(ctx *MessageContext))
+}
+
+type ackMiddleware struct {
+	hub *Hub
+}
+
+func AckMiddleware(hub *Hub) MessageMiddleware {
+	return &ackMiddleware{
+		hub: hub,
 	}
 }
 
-// 更新前端维护的黑名单。
-// 第一层过滤通过发送方的前端通过维护一个“我被谁拉黑”名单，
-// 以及一个用户对的最后更新时间用于筛选过期消息确保数据一致性。
-// 第二层过滤通过接收方的本地黑名单拦截
-func (h *Hub) HandleBlock() {
-	ticker := time.NewTicker(checkTimeoutMsgInterval)
-	defer ticker.Stop()
-	defer func() {
-		if r := recover(); r != nil {
-			h.service.Logger().Error("update blacklist panic")
-		}
-	}()
+func (m *ackMiddleware) Process(ctx *MessageContext, next func(ctx *MessageContext)) {
+	msg, ok := ctx.Message.(*ChatMsg)
+	if !ok {
+		return
+	}
 
+	if msg.Time == 0 {
+		msg.Time = time.Now().UnixMilli()
+	}
+	if msg.ID == "" {
+		msg.ID = uuid.NewString()
+	}
+
+	next(ctx)
+	if msg.Type != Chat && msg.Type != Broadcast { // 服务器生成的消息不需要确认
+		return
+	}
+
+	ack := &AckMsg{
+		Type: Ack,
+		ID:   msg.ID,
+		To:   msg.From,
+	}
+	ackCtx := &MessageContext{
+		Message: ack,
+		To:      []uint{ack.To},
+		Cache:   true,
+	}
+	m.hub.sendDirect(ackCtx)
+}
+
+func (h *Hub) resendPendingMessages() {
+	ticker := time.NewTicker(h.service.Config().Common().CheckAckTimeout())
+	defer ticker.Stop()
+	type header struct {
+		Type int `json:"type"`
+	}
 	for {
 		select {
-		case message := <-h.blocked.sendNotify:
-			message.Time = time.Now().UnixNano()                                                     // 使用纳秒保证消息的顺序
-			h.blocked.cache.CacheUnackMessage(h.service.Config().Common().ResendInterval(), message) // 缓存消息等待前端确认，用于重试
-			h.Send(message.To, message, false)                                                       // 发送消息通知被拉黑方前端更新
-			h.service.Logger().Info("Updating blacklist")
-		case message := <-h.blocked.ack:
-			message.Ack = false                                    // 缓存一致
-			h.blocked.cache.Ack(message.From, message.To, message) // 被拉黑方前端更新完成，删除缓存
-			h.service.Logger().Info("Add Ack message")
 		case <-ticker.C:
-			// 获取过期消息
-			data, err := h.blocked.cache.GetUnAck() // 定时重发通知
-			if err != nil {
+			// 重置计时器,应用热更新
+			resendDelay := h.service.Config().Common().CheckAckTimeout()
+			ticker.Reset(resendDelay)
+
+			msgs, _ := h.service.Cache().GetPendingMessages()
+			if len(msgs) == 0 {
+				time.Sleep(resendDelay + time.Second)
 				continue
 			}
-			count := 0
-			for _, m := range data {
-				var message *HandleBlockMsg
-				err := json.Unmarshal([]byte(m), &message)
-				if err != nil {
-					h.service.Logger().Error(err.Error())
+			for _, msg := range msgs {
+				var t header
+				if err := json.Unmarshal([]byte(msg), &t); err != nil {
+					h.service.Logger().Error("Failed to parse message header", zap.String("msg", msg), zap.Error(err))
 					continue
 				}
-				if !h.Send(message.To, message, false) { // 用户离线，删除缓存
-					h.blocked.cache.RemoveBlockMessage(m)
-					count++
+				var err error
+				switch t.Type {
+				case Chat, System:
+					var m *ChatMsg
+					err = json.Unmarshal([]byte(msg), &m)
+					if err == nil {
+						ctx := &MessageContext{Message: m, Cache: true, To: []uint{m.To}}
+						if h.sendDirect(ctx) {
+							h.service.Cache().RemovePendingMessage(m.ID, m.To, m.Time)
+						}
+					}
+				case Broadcast:
+					var m *ChatMsg
+					err = json.Unmarshal([]byte(msg), &m)
+					if err == nil {
+						to, ok := m.Extra.(float64)
+						if !ok {
+							continue
+						}
+						ctx := &MessageContext{Message: m, Cache: true, To: []uint{uint(to)}}
+						if h.sendDirect(ctx) {
+							h.service.Cache().RemovePendingMessage(m.ID, uint(to), m.Time)
+						}
+					}
+				case UpdateBlackList:
+					var m *ChatMsg
+					err = json.Unmarshal([]byte(msg), &m)
+					if err == nil {
+						ctx := &MessageContext{Message: m, To: []uint{m.To}}
+						if h.sendDirect(ctx) {
+							h.service.Cache().RemovePendingMessage(m.ID, m.To, m.Time)
+						}
+					}
+				default:
+					h.service.Logger().Error("Unknown resend message type", zap.String("msg", msg))
+					continue
+				}
+				if err != nil {
+					h.service.Logger().Error("Unknown resend message type", zap.String("msg", msg))
 				}
 			}
-			if len(data) > 0 { // 日志记录
-				h.service.Logger().Info(fmt.Sprintf("Get cache ack message count: total %d ,resend %d, invalid %d",
-					len(data), len(data)-count, count))
+			// 当前时间区间还有待重发消息，立即执行
+			if int64(len(msgs)) > h.service.Config().Common().ResendBatchSize() {
+				ticker.Reset(time.Millisecond)
 			}
 		case <-h.done:
-			close(h.blocked.sendNotify)
-			close(h.blocked.ack)
-			h.service.Logger().Info("Blocked Manager shutting down...")
 			return
 		}
 	}
 }
 
-func (h *Hub) Send(to uint, message any, cache bool) bool {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	c, ok := h.clients[to]
-	if ok && c.conn != nil {
-		c.send <- message
-		return true
-	} else if cache {
-		h.CacheMessage(message, to)
-	}
-	return false
+type filter struct {
+	hub *Hub
 }
 
-func (h *Hub) CacheMessage(message any, id uint) {
-	h.service.Cache().CacheMessage(id, message)
+func Filter(hub *Hub) MessageMiddleware {
+	return &filter{hub}
+}
+
+func (f *filter) Process(ctx *MessageContext, next func(ctx *MessageContext)) {
+	msg, ok := ctx.Message.(*ChatMsg)
+	if !ok {
+		return
+	}
+
+	to := ctx.To
+	if msg.Type == Chat || msg.Type == Broadcast { // 只拦截用户发出的消息
+		if f.hub.service.Cache().BFM().IsMuted(msg.From) &&
+			f.hub.service.Cache().IsBanMuted(msg.From) {
+			return
+		}
+	}
+
+	j := len(to) - 1
+	for i := 0; i <= j; i++ {
+		for j >= 0 && f.banned(to[j]) {
+			j--
+		}
+		if i < j && f.banned(to[i]) {
+			to[i], to[j] = to[j], to[i]
+		}
+	}
+	to = to[:j+1]
+	ctx.To = to
+	next(ctx)
+}
+
+func (f *filter) banned(id uint) bool {
+	return f.hub.service.Cache().BFM().IsBanned(id) &&
+		f.hub.service.Cache().IsBanPermanent(id)
 }

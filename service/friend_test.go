@@ -24,7 +24,7 @@ func TestQueryStatus(t *testing.T) {
 		expected error
 	}{
 		{errorsx.ErrRecordNotFound, errorsx.ErrNotFound},
-		{errors.New("error"), errorsx.ErrFailed},
+		{errorsx.HandleError(errors.New("error")), errorsx.ErrFailed},
 		{nil, nil},
 	}
 
@@ -41,8 +41,6 @@ func TestQueryStatus(t *testing.T) {
 }
 
 var user = []*model.User{
-	// {Model: gorm.Model{ID: uid}, Username: "test1"},
-	// {Model: gorm.Model{ID: uid + 1}, Username: "test2"}}
 	{ID: uid, Username: "test1"},
 	{ID: uid + 1, Username: "test2"}}
 var friend = &model.Friend{User1: uid, User2: uid + 1, Version: 1}
@@ -142,7 +140,7 @@ func TestRequest(t *testing.T) {
 	t.Run("request: retry", func(t *testing.T) {
 		friend.Status = 0
 		mockf.EXPECT().QueryStatus(uid, uid+1).Return(friend, nil).Times(cfg.Common().MaxRetries())
-		mockf.EXPECT().UpdateStatus(friend).Return(errors.New("error")).Times(cfg.Common().MaxRetries())
+		mockf.EXPECT().UpdateStatus(friend).Return(errorsx.HandleError(errors.New("error"))).Times(cfg.Common().MaxRetries())
 		err := f.Request(uid, uid+1)
 		assert.Equal(t, errorsx.ErrFailed, err)
 	})
@@ -361,11 +359,11 @@ func TestBlock(t *testing.T) {
 			assert.Equal(t, tt.expected, err)
 			if tt.expected == nil {
 				msg := <-mock.HandleBlock
-				message := &ws.HandleBlockMsg{
-					Type:  ws.HandleBlock,
+				message := &ws.ChatMsg{
+					Type:  ws.UpdateBlackList,
 					From:  tt.from,
 					To:    tt.to,
-					Block: true,
+					Extra: true,
 				}
 				assert.Equal(t, message, msg)
 				chatMsg := <-mock.Message
@@ -423,10 +421,11 @@ func TestUnblock(t *testing.T) {
 			assert.Equal(t, tt.expected, err)
 			if tt.expected == nil {
 				msg := <-mock.HandleBlock
-				message := &ws.HandleBlockMsg{
-					Type: ws.HandleBlock,
-					From: tt.from,
-					To:   tt.to,
+				message := &ws.ChatMsg{
+					Type:  ws.UpdateBlackList,
+					From:  tt.from,
+					To:    tt.to,
+					Extra: false,
 				}
 				assert.Equal(t, message, msg)
 				chatMsg := <-mock.Message
@@ -604,11 +603,6 @@ func TestFriendList(t *testing.T) {
 		assert.Equal(t, expected, got)
 	})
 }
-
-// func TestBlockMeList(t *testing.T) {
-// 	setup(t)
-// 	defer clear(t)
-// }
 
 func TestSearch(t *testing.T) {
 	setup(t)

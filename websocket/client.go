@@ -16,7 +16,7 @@ const (
 	System = iota + 100
 	Chat
 	Broadcast
-	HandleBlock
+	UpdateBlackList
 	Ack
 )
 
@@ -89,12 +89,18 @@ func (c *Client) Read() {
 				return
 			}
 			c.service.Hub().SendToBroadcast(msg)
-		case HandleBlock:
-			msg, err := c.parseHandleBlockMsg(body)
+		case Ack:
+			msg, err := c.parseAckMessage(body)
 			if err != nil {
 				return
 			}
-			c.service.Hub().SendUpdateBlockedListNotify(msg)
+			c.service.Hub().SendToAck(msg)
+		// case UpdateBlackList:
+		// 	msg, err := c.parseMessage(body)
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// 	c.service.Hub().SendUpdateBlockedListNotify(msg)
 		default:
 			c.service.Logger().Error("Unknow websocket message type", zap.String("message", string(p)))
 			return
@@ -113,11 +119,11 @@ func (c *Client) Write() {
 			c.conn.Close()
 			close(c.send)
 			if _, ok := msg.(CloseSignal); !ok {
-				c.service.Hub().CacheMessage(msg, c.id)
+				c.service.Hub().StoreOfflineMessage(msg, c.id)
 			}
 			for msg := range c.send {
 				if _, ok := msg.(CloseSignal); !ok {
-					c.service.Hub().CacheMessage(msg, c.id)
+					c.service.Hub().StoreOfflineMessage(msg, c.id)
 				}
 			}
 			return
@@ -130,7 +136,7 @@ func (c *Client) Write() {
 		case *ChatMsg:
 			packagingMsg.Type = m.Type
 			packagingMsg.Body = m
-		case *HandleBlockMsg:
+		case *AckMsg:
 			packagingMsg.Type = m.Type
 			packagingMsg.Body = m
 		default:
@@ -154,53 +160,52 @@ func (c *Client) Write() {
 				break
 			}
 			if !sent {
-				c.service.Hub().CacheMessage(msg, c.id)
+				c.service.Hub().StoreOfflineMessage(msg, c.id)
 			}
 		}
 	}
 }
 
 type Message struct {
-	Type int `json:"type"`
-	// Ack  bool            `json:"ack"`
+	Type int             `json:"type"`
 	Body json.RawMessage `json:"body"`
 }
 
 type ChatMsg struct {
-	ID   string `json:"id"`
-	Type int    `json:"type"`
-	From uint   `json:"from"`
-	Body string `json:"body"`
-	Time int64  `json:"time"`
-	To   uint   `json:"to"`
-	Data any    `json:"data"`
+	ID    string `json:"id"`
+	Type  int    `json:"type"`
+	From  uint   `json:"from"`
+	Body  string `json:"body"`
+	Time  int64  `json:"time"`
+	To    uint   `json:"to"`
+	Extra any    `json:"extra"`
 }
-type HandleBlockMsg struct {
-	Type  int   `json:"type"`
-	From  uint  `json:"from"`
-	To    uint  `json:"to"`
-	Time  int64 `json:"time"`
-	Ack   bool  `json:"ack"`
-	Block bool  `json:"block"`
+
+type AckMsg struct {
+	Type int    `json:"type"`
+	ID   string `json:"id"`
+	To   uint   `json:"to"`
+	Time int64  `json:"time"`
 }
 
 func (c *Client) parseMessage(data json.RawMessage) (*ChatMsg, error) {
 	var msg *ChatMsg
 	err := json.Unmarshal(data, &msg)
-	if err != nil {
-		c.service.Logger().Error("Unknow websocket message type", zap.String("message", string(data)))
-		return nil, err
-	}
-	return msg, nil
+	return msg, c.handleJsonError(err, data)
 }
-func (c *Client) parseHandleBlockMsg(data json.RawMessage) (*HandleBlockMsg, error) {
-	var msg *HandleBlockMsg
+
+func (c *Client) parseAckMessage(data json.RawMessage) (*AckMsg, error) {
+	var msg *AckMsg
 	err := json.Unmarshal(data, &msg)
+	return msg, c.handleJsonError(err, data)
+}
+
+func (c *Client) handleJsonError(err error, data json.RawMessage) error {
 	if err != nil {
 		c.service.Logger().Error("Unknow websocket message type", zap.String("message", string(data)))
-		return nil, err
+		return err
 	}
-	return msg, nil
+	return nil
 }
 
 func (c *Client) sendCloseMessage() {

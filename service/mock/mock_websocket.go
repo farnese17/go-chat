@@ -5,14 +5,18 @@ import (
 )
 
 var Message chan *ws.ChatMsg
-var HandleBlock chan *ws.HandleBlockMsg
+var HandleBlock chan *ws.ChatMsg
 var Confirm chan any
 
 type MockHub struct {
 }
 
+// SendToAck implements websocket.HubInterface.
+func (m *MockHub) SendToAck(message *ws.AckMsg) {
+}
+
 // CacheMessage implements websocket.HubInterface.
-func (m *MockHub) CacheMessage(message any, id uint) {
+func (m *MockHub) StoreOfflineMessage(message any, id uint) {
 }
 
 // Register implements websocket.HubInterface.
@@ -44,7 +48,7 @@ func NewMockHub() ws.HubInterface {
 
 func (m *MockHub) Run() {
 	Message = make(chan *ws.ChatMsg, 2)
-	HandleBlock = make(chan *ws.HandleBlockMsg, 1)
+	HandleBlock = make(chan *ws.ChatMsg, 1)
 	Confirm = make(chan any)
 }
 func (m *MockHub) Stop() {
@@ -69,6 +73,6 @@ func (m *MockHub) SendDeleteGroupNotify(message *ws.ChatMsg) {
 }
 
 // SendToHandleBlockedMessage implements websocket.HubInterface.
-func (m *MockHub) SendUpdateBlockedListNotify(message *ws.HandleBlockMsg) {
+func (m *MockHub) SendUpdateBlockedListNotify(message *ws.ChatMsg) {
 	HandleBlock <- message
 }

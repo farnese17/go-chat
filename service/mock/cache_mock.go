@@ -75,18 +75,6 @@ func (mr *MockCacheMockRecorder) BFM() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BFM", reflect.TypeOf((*MockCache)(nil).BFM))
 }
 
-// CacheMessage mocks base method.
-func (m *MockCache) CacheMessage(id uint, message any) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CacheMessage", id, message)
-}
-
-// CacheMessage indicates an expected call of CacheMessage.
-func (mr *MockCacheMockRecorder) CacheMessage(id, message interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheMessage", reflect.TypeOf((*MockCache)(nil).CacheMessage), id, message)
-}
-
 // Flush mocks base method.
 func (m *MockCache) Flush() error {
 	m.ctrl.T.Helper()
@@ -179,19 +167,34 @@ func (mr *MockCacheMockRecorder) GetMembersAndCache(gid interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMembersAndCache", reflect.TypeOf((*MockCache)(nil).GetMembersAndCache), gid)
 }
 
-// GetMessage mocks base method.
-func (m *MockCache) GetMessage(id uint) ([]string, error) {
+// GetOfflineMessages mocks base method.
+func (m *MockCache) GetOfflineMessages(id uint) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMessage", id)
+	ret := m.ctrl.Call(m, "GetOfflineMessages", id)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetMessage indicates an expected call of GetMessage.
-func (mr *MockCacheMockRecorder) GetMessage(id interface{}) *gomock.Call {
+// GetOfflineMessages indicates an expected call of GetOfflineMessages.
+func (mr *MockCacheMockRecorder) GetOfflineMessages(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessage", reflect.TypeOf((*MockCache)(nil).GetMessage), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOfflineMessages", reflect.TypeOf((*MockCache)(nil).GetOfflineMessages), id)
+}
+
+// GetPendingMessages mocks base method.
+func (m *MockCache) GetPendingMessages() ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingMessages")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPendingMessages indicates an expected call of GetPendingMessages.
+func (mr *MockCacheMockRecorder) GetPendingMessages() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingMessages", reflect.TypeOf((*MockCache)(nil).GetPendingMessages))
 }
 
 // GetToken mocks base method.
@@ -289,16 +292,30 @@ func (mr *MockCacheMockRecorder) RemoveMember(gid, member interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMember", reflect.TypeOf((*MockCache)(nil).RemoveMember), gid, member)
 }
 
-// RemoveMessage mocks base method.
-func (m *MockCache) RemoveMessage(id uint, message string) {
+// RemoveOfflineMessage mocks base method.
+func (m *MockCache) RemoveOfflineMessage(id uint, message string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveMessage", id, message)
+	m.ctrl.Call(m, "RemoveOfflineMessage", id, message)
 }
 
-// RemoveMessage indicates an expected call of RemoveMessage.
-func (mr *MockCacheMockRecorder) RemoveMessage(id, message interface{}) *gomock.Call {
+// RemoveOfflineMessage indicates an expected call of RemoveOfflineMessage.
+func (mr *MockCacheMockRecorder) RemoveOfflineMessage(id, message interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessage", reflect.TypeOf((*MockCache)(nil).RemoveMessage), id, message)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveOfflineMessage", reflect.TypeOf((*MockCache)(nil).RemoveOfflineMessage), id, message)
+}
+
+// RemovePendingMessage mocks base method.
+func (m *MockCache) RemovePendingMessage(msgID string, receiver uint, sign int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemovePendingMessage", msgID, receiver, sign)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemovePendingMessage indicates an expected call of RemovePendingMessage.
+func (mr *MockCacheMockRecorder) RemovePendingMessage(msgID, receiver, sign interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemovePendingMessage", reflect.TypeOf((*MockCache)(nil).RemovePendingMessage), msgID, receiver, sign)
 }
 
 // Set mocks base method.
@@ -385,78 +402,28 @@ func (mr *MockCacheMockRecorder) Stop() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockCache)(nil).Stop))
 }
 
-// MockBlockCache is a mock of BlockCache interface.
-type MockBlockCache struct {
-	ctrl     *gomock.Controller
-	recorder *MockBlockCacheMockRecorder
-}
-
-// MockBlockCacheMockRecorder is the mock recorder for MockBlockCache.
-type MockBlockCacheMockRecorder struct {
-	mock *MockBlockCache
-}
-
-// NewMockBlockCache creates a new mock instance.
-func NewMockBlockCache(ctrl *gomock.Controller) *MockBlockCache {
-	mock := &MockBlockCache{ctrl: ctrl}
-	mock.recorder = &MockBlockCacheMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockBlockCache) EXPECT() *MockBlockCacheMockRecorder {
-	return m.recorder
-}
-
-// Ack mocks base method.
-func (m *MockBlockCache) Ack(from, to uint, msg any) {
+// StoreOfflineMessage mocks base method.
+func (m *MockCache) StoreOfflineMessage(id uint, message any) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Ack", from, to, msg)
+	m.ctrl.Call(m, "StoreOfflineMessage", id, message)
 }
 
-// Ack indicates an expected call of Ack.
-func (mr *MockBlockCacheMockRecorder) Ack(from, to, msg interface{}) *gomock.Call {
+// StoreOfflineMessage indicates an expected call of StoreOfflineMessage.
+func (mr *MockCacheMockRecorder) StoreOfflineMessage(id, message interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockBlockCache)(nil).Ack), from, to, msg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreOfflineMessage", reflect.TypeOf((*MockCache)(nil).StoreOfflineMessage), id, message)
 }
 
-// CacheUnackMessage mocks base method.
-func (m *MockBlockCache) CacheUnackMessage(t time.Duration, msg any) {
+// StorePendingMessage mocks base method.
+func (m *MockCache) StorePendingMessage(message any, sign int64) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CacheUnackMessage", t, msg)
+	m.ctrl.Call(m, "StorePendingMessage", message, sign)
 }
 
-// CacheUnackMessage indicates an expected call of CacheUnackMessage.
-func (mr *MockBlockCacheMockRecorder) CacheUnackMessage(t, msg interface{}) *gomock.Call {
+// StorePendingMessage indicates an expected call of StorePendingMessage.
+func (mr *MockCacheMockRecorder) StorePendingMessage(message, sign interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheUnackMessage", reflect.TypeOf((*MockBlockCache)(nil).CacheUnackMessage), t, msg)
-}
-
-// GetUnAck mocks base method.
-func (m *MockBlockCache) GetUnAck() ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUnAck")
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUnAck indicates an expected call of GetUnAck.
-func (mr *MockBlockCacheMockRecorder) GetUnAck() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnAck", reflect.TypeOf((*MockBlockCache)(nil).GetUnAck))
-}
-
-// RemoveBlockMessage mocks base method.
-func (m *MockBlockCache) RemoveBlockMessage(msg any) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveBlockMessage", msg)
-}
-
-// RemoveBlockMessage indicates an expected call of RemoveBlockMessage.
-func (mr *MockBlockCacheMockRecorder) RemoveBlockMessage(msg interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBlockMessage", reflect.TypeOf((*MockBlockCache)(nil).RemoveBlockMessage), msg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorePendingMessage", reflect.TypeOf((*MockCache)(nil).StorePendingMessage), message, sign)
 }
 
 // MockBloomFilter is a mock of BloomFilter interface.

@@ -2,7 +2,6 @@ package errorsx
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -26,32 +25,31 @@ var (
 	ErrSystemUnavailable             = errors.New("系统内部错误,请稍后再试")
 	ErrNoSettingOption               = errors.New("没有找到配置项")
 	ErrSystemBusy                    = errors.New("系统繁忙,请稍后再试")
-	// ErrInputNullSettingOption        = errors.New("请输入要修改的配置项")
-	ErrUnknownError            = errors.New("未知错误")
-	ErrOperactionFailed        = errors.New("操作失败,请重试")
-	ErrOperactionSuccess       = errors.New("操作成功")
-	ErrUploadFailed            = errors.New("上传失败，请重试")
-	ErrFileExisted             = errors.New("文件已存在")
-	ErrUserExisted             = errors.New("用户已存在")
-	ErrUserNotExist            = errors.New("用户不存在")
-	ErrUserNotLogin            = errors.New("用户未登录")
-	ErrLoginFailed             = errors.New("登录失败,请重试")
-	ErrLoginExpired            = errors.New("登录已过期,请重新登录")
-	ErrGetUserInfoFailed       = errors.New("获取用户信息失败,请重试")
-	ErrRegisterFailed          = errors.New("注册失败,请重试")
-	ErrPhoneRegistered         = errors.New("该手机号已注册")
-	ErrEmailRegistered         = errors.New("该邮箱已注册")
-	ErrInputEmpty              = errors.New("输入不能为空")
-	ErrPermissiondenied        = errors.New("权限不足")
-	ErrUsernameOrPasswordWrong = errors.New("用户名或密码错误")
-	ErrWrongPassword           = errors.New("密码错误")
-	ErrDifferentPassword       = errors.New("两次输入的密码不一致")
-	ErrSamePassword            = errors.New("新密码不能和旧密码一致")
-	ErrNoLogin                 = errors.New("请先登录后再进行操作")
-	ErrHasGroupNeedHandOver    = errors.New("注销账号前,请先移交群聊")
-	ErrBanned                  = errors.New("你已被禁止")
-	ErrUserBanned              = errors.New("该用户已被禁止")
-	ErrUserMuted               = errors.New("该用户已被禁言")
+	ErrUnknownError                  = errors.New("未知错误")
+	ErrOperactionFailed              = errors.New("操作失败,请重试")
+	ErrOperactionSuccess             = errors.New("操作成功")
+	ErrUploadFailed                  = errors.New("上传失败，请重试")
+	ErrFileExisted                   = errors.New("文件已存在")
+	ErrUserExisted                   = errors.New("用户已存在")
+	ErrUserNotExist                  = errors.New("用户不存在")
+	ErrUserNotLogin                  = errors.New("用户未登录")
+	ErrLoginFailed                   = errors.New("登录失败,请重试")
+	ErrLoginExpired                  = errors.New("登录已过期,请重新登录")
+	ErrGetUserInfoFailed             = errors.New("获取用户信息失败,请重试")
+	ErrRegisterFailed                = errors.New("注册失败,请重试")
+	ErrPhoneRegistered               = errors.New("该手机号已注册")
+	ErrEmailRegistered               = errors.New("该邮箱已注册")
+	ErrInputEmpty                    = errors.New("输入不能为空")
+	ErrPermissiondenied              = errors.New("权限不足")
+	ErrUsernameOrPasswordWrong       = errors.New("用户名或密码错误")
+	ErrWrongPassword                 = errors.New("密码错误")
+	ErrDifferentPassword             = errors.New("两次输入的密码不一致")
+	ErrSamePassword                  = errors.New("新密码不能和旧密码一致")
+	ErrNoLogin                       = errors.New("请先登录后再进行操作")
+	ErrHasGroupNeedHandOver          = errors.New("注销账号前,请先移交群聊")
+	ErrBanned                        = errors.New("你已被禁止")
+	ErrUserBanned                    = errors.New("该用户已被禁止")
+	ErrUserMuted                     = errors.New("该用户已被禁言")
 	//
 	ErrAlreadyFriend  = errors.New("对方已经是你的好友")
 	ErrBlocked        = errors.New("你在对方的黑名单中")
@@ -60,7 +58,6 @@ var (
 	ErrNoBlocked      = errors.New("对方不在黑名单中")
 	ErrNoRequest      = errors.New("对方没有发送好友请求")
 	//
-	// EDIT_FRIEND_STATUS_FAILED  = errors.New("添加%s为好友失败,请重试")
 	ErrAlreadyInGroup       = errors.New("已经在群组中")
 	ErrJoinGroup            = errors.New("%s加入群组")
 	ErrGroupNotFound        = errors.New("群组不存在")
@@ -224,24 +221,20 @@ var (
 	ErrRecordNotFound           = errors.New("record not found")
 	ErrNoAffectedRows           = errors.New("no affected rows")
 	ErrMemberNotFound           = errors.New("member not found")
-	// ErrInvalidToken             = errors.New("invalid token")
-	ErrWrongTokenType   = errors.New("wrong token type")
-	ErrPermissionDenied = errors.New("permission denied")
-	ErrNilTransaction   = errors.New("nil transaction")
-	ErrGetFromContext   = errors.New("get from context")
-	ErrNotRunning       = errors.New("server not running")
-	ErrTimeout          = errors.New("timeout")
-	ErrConnectionReset  = errors.New("conntection reset")
-	ErrConnectionClosed = errors.New("connection closed")
+	ErrWrongTokenType           = errors.New("wrong token type")
+	ErrPermissionDenied         = errors.New("permission denied")
+	ErrNilTransaction           = errors.New("nil transaction")
+	ErrGetFromContext           = errors.New("get from context")
+	ErrNotRunning               = errors.New("server not running")
+	ErrTimeout                  = errors.New("timeout")
+	ErrConnectionReset          = errors.New("conntection reset")
+	ErrConnectionClosed         = errors.New("connection closed")
 )
-
-// var ReconnectToDB func() error
 
 func HandleError(err error) error {
 	if err == nil {
 		return nil
 	}
-	fmt.Println(err.Error())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrRecordNotFound
 	}
