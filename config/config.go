@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/farnese17/chat/utils/errorsx"
@@ -31,11 +33,10 @@ type Config interface {
 
 func LoadConfig(path string) Config {
 	// default
-	cfg := &config_{
+	defaultCfg := &config_{
 		Common_: &Common_{
 			Path_:              path,
 			LogDir_:            "./chat/log/",
-			ResendInterval_:    3 * time.Second,
 			RetryDelay_:        400 * time.Millisecond,
 			JitterCoeff_:       0.5,
 			MaxRetries_:        3,
@@ -45,16 +46,8 @@ func LoadConfig(path string) Config {
 			MessageAckTiemout_: time.Second * 3,
 			ResendBatchSize_:   100,
 		},
-		Database_: &Database_{
-			Host_:     "127.0.0.1",
-			Port_:     "3306",
-			User_:     "root",
-			Password_: "123456",
-			DbName_:   "chat",
-		},
+		Database_: &Database_{},
 		Cache_: &Cache_{
-			Addr_:               "127.0.0.1:6379",
-			DbNum_:              1,
 			MaxGroups_:          100000,
 			AutoFlushInterval_:  50 * time.Millisecond,
 			AutoFlushThreshold_: 500,
@@ -67,7 +60,7 @@ func LoadConfig(path string) Config {
 		},
 	}
 
-	config = cfg
+	config = defaultCfg
 	// load config
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -79,24 +72,66 @@ func LoadConfig(path string) Config {
 			dir := filepath.Dir(path)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				fmt.Println("create folder failed: ", err)
-				return cfg
+				return defaultCfg
 			}
-			data, _ := yaml.Marshal(cfg)
+
+			data, _ := defaultCfg.encodeYamlWithComment()
 			if err := os.WriteFile(path, data, 0644); err != nil {
 				fmt.Println("initialization config file failed: ", err)
 			}
 		} else {
 			fmt.Println("load config file failed: ", err)
 		}
-		return cfg
+		return defaultCfg
 	}
 
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	loadedCfg := new(config_)
+	*loadedCfg = *defaultCfg
+	if err := yaml.Unmarshal(data, &loadedCfg); err != nil {
 		fmt.Println("parse the config file failed: ", err)
 	}
-	cfg.Common_.Path_ = path
-	config = cfg
-	return cfg
+	loadedCfg.Common_.Path_ = path
+	// 合并
+	loadedCfg = mergeConfig(defaultCfg, loadedCfg)
+	config = loadedCfg
+	loadedCfg.Save()
+	return loadedCfg
+}
+
+// 将可能存在的空值填充为默认值
+func mergeConfig(src, dest *config_) *config_ {
+	exclude := []string{"host", "port", "user", "db_name", "db_num", "addr", "password", "path", "log_dir", "log_path"}
+	var merge func(reflect.Value, reflect.Value)
+	merge = func(v1, v2 reflect.Value) {
+		if v1.Kind() == reflect.Ptr {
+			if v1.IsNil() {
+				return
+			}
+			v1 = v1.Elem()
+			// v2来源于解引v1，再反序列化覆盖，保证结构完整
+			v2 = v2.Elem()
+		}
+		if v1.Kind() != reflect.Struct {
+			return
+		}
+		t1 := v1.Type()
+		for i := range v1.NumField() {
+			tag := t1.Field(i).Tag.Get("yaml")
+			if slices.Contains(exclude, tag) {
+				continue
+			}
+			f1 := v1.Field(i)
+			f2 := v2.Field(i)
+			if f2.IsZero() && f2.CanSet() {
+				f2.Set(f1)
+			}
+			merge(f1, f2)
+		}
+	}
+
+	v1, v2 := reflect.ValueOf(src), reflect.ValueOf(dest)
+	merge(v1, v2)
+	return dest
 }
 
 func GetConfig() Config {
@@ -111,43 +146,23 @@ type config_ struct {
 }
 
 func (cfg *config_) Get() map[string]any {
-	res := make(map[string]any)
-	c := *cfg
-	v := reflect.ValueOf(c)
-	t := v.Type()
-	for i := range v.NumField() {
-		field := v.Field(i)
-		if !field.CanInterface() || !field.IsValid() {
-			continue
+	c, _ := yaml.Marshal(cfg)
+	var res map[string]any
+	yaml.Unmarshal(c, &res)
+	var handler func(map[string]any)
+	handler = func(m map[string]any) {
+		if m == nil {
+			return
 		}
-		if field.Kind() != reflect.Ptr {
-			continue
-		}
-		vv := field.Elem()
-		if !vv.IsValid() {
-			continue
-		}
-		tt := vv.Type()
-		m := make(map[string]any)
-		for j := range vv.NumField() {
-			field := tt.Field(j).Tag.Get("yaml")
-			if field == "-" || field == "password" {
-				continue
-			}
-
-			fieldValue := vv.Field(j)
-			if !fieldValue.IsValid() || !fieldValue.CanInterface() {
-				continue
-			}
-
-			if val, ok := fieldValue.Interface().(time.Duration); ok {
-				m[field] = val.String()
-			} else {
-				m[field] = fieldValue.Interface()
+		for k, v := range m {
+			if val, ok := v.(map[string]any); ok {
+				handler(val)
+			} else if k == "password" {
+				delete(m, k)
 			}
 		}
-		res[t.Field(i).Tag.Get("yaml")] = m
 	}
+	handler(res)
 	return res
 }
 
@@ -168,7 +183,7 @@ func (cfg *config_) FileServer() FileServer {
 }
 
 func (cfg *config_) Save() error {
-	data, err := yaml.Marshal(cfg)
+	data, err := cfg.encodeYamlWithComment()
 	if err != nil {
 		return err
 	}
@@ -177,12 +192,6 @@ func (cfg *config_) Save() error {
 
 func (cfg *config_) SetCommon(k, v string) error {
 	switch k {
-	case "resend_interval":
-		t, err := cfg.convertToTime(v)
-		if err != nil {
-			return err
-		}
-		cfg.Common_.ResendInterval_ = t
 	case "retry_delay":
 		t, err := cfg.convertToTime(v)
 		if err != nil {
@@ -288,22 +297,20 @@ func (cfg *config_) SetCache(k, v string) error {
 }
 
 type Common_ struct {
-	Path_              string        `yaml:"config_path" json:"config_path"`
-	LogDir_            string        `yaml:"log_dir" json:"log_dir"`
-	ResendInterval_    time.Duration `yaml:"resend_interval" json:"resend_interval"`
-	RetryDelay_        time.Duration `yaml:"retry_delay" json:"retry_delay"`
-	JitterCoeff_       float64       `yaml:"jitter_coeff" json:"jitter_coeff"`
-	MaxRetries_        int           `yaml:"max_retries" json:"max_retries"`
-	InviteValidDays_   int           `yaml:"invite_valid_days" json:"invite_valid_days"`
-	TokenValidPeriod_  time.Duration `yaml:"token_valid_period" json:"token_valid_period"`
-	CheckAckTimeout_   time.Duration `yaml:"check_ack_timeout" json:"check_ack_timeout"`
-	MessageAckTiemout_ time.Duration `yaml:"message_ack_timeout" json:"message_ack_timeout"`
-	ResendBatchSize_   int64         `yaml:"resend_batch_size" json:"resend_batch_size"`
+	Path_              string        `yaml:"path" json:"path" comment:"配置文件路径"`
+	LogDir_            string        `yaml:"log_dir" json:"log_dir" comment:"日志目录"`
+	RetryDelay_        time.Duration `yaml:"retry_delay" json:"retry_delay" comment:"重试退避基数"`
+	JitterCoeff_       float64       `yaml:"jitter_coeff" json:"jitter_coeff" comment:"重试退避抖动系数"`
+	MaxRetries_        int           `yaml:"max_retries" json:"max_retries" comment:"最大重试次数"`
+	InviteValidDays_   int           `yaml:"invite_valid_days" json:"invite_valid_days" comment:"群组邀请有效期"`
+	TokenValidPeriod_  time.Duration `yaml:"token_valid_period" json:"token_valid_period" comment:"token有效期"`
+	CheckAckTimeout_   time.Duration `yaml:"check_ack_timeout" json:"check_ack_timeout" comment:"检查未确认消息的间隔"`
+	MessageAckTiemout_ time.Duration `yaml:"message_ack_timeout" json:"message_ack_timeout" comment:"等待确认的消息的超时时间"`
+	ResendBatchSize_   int64         `yaml:"resend_batch_size" json:"resend_batch_size" comment:"获取未确认消息用于重发的批大小"`
 }
 
 type Common interface {
 	LogDir() string
-	ResendInterval() time.Duration
 	RetryDelay(n int) time.Duration
 	MaxRetries() int
 	InviteValidDays() int
@@ -315,10 +322,6 @@ type Common interface {
 
 func (c *Common_) LogDir() string {
 	return c.LogDir_
-}
-
-func (c *Common_) ResendInterval() time.Duration {
-	return c.ResendInterval_
 }
 
 func (c *Common_) RetryDelay(n int) time.Duration {
@@ -386,12 +389,13 @@ func (data *Database_) DBname() string {
 }
 
 type Cache_ struct {
-	Addr_               string        `yaml:"addr" json:"addr"`
-	DbNum_              int           `yaml:"db_num" json:"db_num"`
-	MaxGroups_          int           `yaml:"max_groups" json:"max_groups"`
-	AutoFlushInterval_  time.Duration `yaml:"auto_flush_interval" json:"auto_flush_interval"`
-	AutoFlushThreshold_ int32         `yaml:"auto_flush_threshold" json:"auto_flush_threshold"`
-	RetryDelay_         time.Duration `yaml:"retry_delay" json:"retry_delay"`
+	Addr_               string        `yaml:"addr" json:"addr" comment:"redis地址: 127.0.0.1:6379"`
+	Password_           string        `yaml:"password" json:"-" comment:"redis密码"`
+	DbNum_              int           `yaml:"db_num" json:"db_num" comment:"redis仓库"`
+	MaxGroups_          int           `yaml:"max_groups" json:"max_groups" comment:"最大缓存群组数量"`
+	AutoFlushInterval_  time.Duration `yaml:"auto_flush_interval" json:"auto_flush_interval" comment:"redis管道刷新间隔"`
+	AutoFlushThreshold_ int32         `yaml:"auto_flush_threshold" json:"auto_flush_threshold" comment:"redis管道自动刷新阈值"`
+	RetryDelay_         time.Duration `yaml:"retry_delay" json:"retry_delay" comment:"redis重试退避基数"`
 }
 
 type Cache interface {
@@ -428,9 +432,9 @@ func (cfg *Cache_) RetryDelay(n int) time.Duration {
 }
 
 type FileServer_ struct {
-	Addr_    string `yaml:"addr" json:"addr"`
-	Path_    string `yaml:"path" json:"path"`
-	LogPath_ string `yaml:"log_path"`
+	Addr_    string `yaml:"addr" json:"addr" comment:"文件储存系统地址"`
+	Path_    string `yaml:"path" json:"path" comment:"文件储存目录"`
+	LogPath_ string `yaml:"log_path" comment:"文件储存系统日志"`
 }
 
 type FileServer interface {
@@ -457,4 +461,42 @@ func (cfg *config_) convertToTime(s string) (time.Duration, error) {
 		return -1, errors.New("必须是时间格式,如: 24h,50ms,0.1s")
 	}
 	return t, nil
+}
+
+func (cfg *config_) encodeYamlWithComment() ([]byte, error) {
+	// 先使用标准库序列化
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	// 分行处理
+	lines := strings.Split(string(data), "\n")
+	idx := 0
+	res := []string{}
+
+	var addComment func(reflect.Value, string)
+	addComment = func(v reflect.Value, indent string) {
+		if v.Kind() != reflect.Struct {
+			return
+		}
+		t := v.Type()
+		for i := range v.NumField() {
+			field := v.Field(i)
+			if !field.IsValid() {
+				return
+			}
+			if cm := t.Field(i).Tag.Get("comment"); cm != "" {
+				res = append(res, indent+"# "+cm)
+			}
+			res = append(res, lines[idx])
+			idx++
+			if field.Kind() == reflect.Ptr {
+				field = field.Elem()
+			}
+			addComment(field, "  "+indent)
+		}
+	}
+	v := reflect.ValueOf(*cfg)
+	addComment(v, "")
+	return []byte(strings.Join(res, "\n")), nil
 }
