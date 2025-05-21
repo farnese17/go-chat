@@ -66,11 +66,7 @@ func (s *SQLFriendRepository) List(id uint) ([]*m.SummaryFriendInfo, error) {
 		Select(`u.id AS uid,u.username ,u.avatar,friend.status,friend.id,u.ban_level,u.ban_expire_at,
 			if(user1 = ?,user1_remark,user2_remark) AS remark,
 			if(user1 = ?,user1_group,user2_group) AS`+" `group` ", id, id).
-		Joins(`LEFT JOIN`+" `user` "+` AS u ON
-			CASE ?
-			WHEN user1 THEN u.id = user2
-			WHEN user2 THEN u.id = user1
-			END`, id).
+		Joins(`LEFT JOIN`+" `user` "+` AS u ON u.id = if(user1 = ?,user2,user1)`, id).
 		Where("user1 = ? OR user2 = ?", id, id).
 		Find(&friend).Error
 	return friend, err
@@ -86,8 +82,7 @@ func (s *SQLFriendRepository) Get(from, to uint) (*m.Friendinfo, error) {
 		Select(`u.id AS uid,u.username,u.avatar,u.phone,u.email,friend.id,friend.status,u.ban_level,u.ban_expire_at,
 			if(user1 = ?,user1_remark,user2_remark) AS remark,
 			if(user1 = ?,user1_group,user2_group) AS`+" `group` ", from, from).
-		Joins(`LEFT JOIN`+" `user` "+`AS u ON
-			CASE ? WHEN user1 THEN u.id = user2 WHEN user2 THEN u.id = user1 END`, from).
+		Joins(`LEFT JOIN`+" `user` "+`AS u ON u.id = if(user1 = ?,user2,user1)`, from).
 		Where("user1 = ? AND user2 = ?", id1, id2).
 		First(&friend)
 
@@ -112,36 +107,47 @@ func (s *SQLFriendRepository) UpdateRemarkOrGroup(friend *m.Friend) error {
 }
 
 func (s *SQLFriendRepository) Search(id uint, value string, cursor *m.Cursor) (*m.Cursor, []*m.Friendinfo, error) {
-	value = "%" + value + "%"
 	var result []*m.Friendinfo
-	query := s.db.Model(&m.User{}).
-		Select(`user.id AS uid,username,avatar,user.created_at,f.id,user.ban_level,user.ban_expire_at,
-		if(user1 = ? OR user2 = ?,status,0) AS status,
-		if(user1 = ? OR user2 = ?,phone,null) AS phone,
-		if(user1 = ? OR user2 = ?,email,null) AS email,
-		CASE ? WHEN user1 THEN user1_remark WHEN user2 THEN user2_remark ELSE null END AS remark,
-		CASE ? WHEN user1 THEN user1_group WHEN user2 THEN user2_group ELSE null END AS`+" `group` ", id, id, id, id, id, id, id, id).
-		Joins(`LEFT JOIN friend AS f ON user.id = user1 OR user.id = user2`).
-		Where("`user`.id > ? AND `user`.id != ? AND `user`.ban_level != ? AND (status NOT IN ? OR status IS NULL)",
-			cursor.LastID, id, m.BanLevelPermanent, []int{m.FSBlock1To2, m.FSBlock2To1, m.FSBothBlocked}).
-		Where("`user`.username LIKE ? OR `user`.id LIKE ? OR `user`.phone LIKE ? OR `user`.email LIKE ?", value, value, value, value)
-
-	err := s.db.Raw(`?
-	ORDER BY
-		CASE status
+	selected := " u.id,username,avatar,phone,email,u.created_at,ban_level,ban_expire_at,status,user1_remark,user2_remark,user1_group,user2_group,user1,user2 "
+	sql := `
+		SELECT u.id AS uid,username,avatar,u.created_at,ban_level,ban_expire_at,
+			if(status IS NULL,10,status) AS status,
+			if(user1 = ? OR user2 = ? OR u.id = ?,phone,NULL) AS phone,
+			if(user1 = ? OR user2 = ? OR u.id = ?,email,NULL) AS email,
+			if(user1 = ?,user1_remark,user2_remark) AS remark,
+			if(user1 = ?,user1_group,user2_group) AS` + " `group` " +
+		`FROM (
+			(SELECT` + selected +
+		`FROM user AS u
+			 LEFT JOIN friend AS f ON user1 = if(u.id < ?,u.id,?) AND user2 = if(u.id < ?,?,u.id)
+			 WHERE u.id = ? AND u.id > ? AND (status IS NULL OR status NOT IN ?))
+			UNION
+			(SELECT` + selected +
+		`FROM user AS u
+			 LEFT JOIN friend AS f ON user1 = if(u.id < ?,u.id,?) AND user2 = if(u.id < ?,?,u.id)
+			 WHERE MATCH(username) AGAINST(? IN BOOLEAN MODE) AND u.id > ? AND (status IS NULL OR status NOT IN ?)
+			 LIMIT ?)
+			) AS u
+		ORDER BY 
+			CASE status 
 			WHEN ? THEN 1
 			WHEN ? THEN 2
 			WHEN ? THEN 2
 			WHEN 0 THEN 9
-			ELSE 10
-		END,username
-		LIMIT ?`, query, m.FSAdded, m.FSReq1To2, m.FSReq2To1, cursor.PageSize+1).
-		Scan(&result).Error
-
+			ELSE
+				if(uid = ?,0,10)
+			END
+	`
+	err := s.db.Raw(sql,
+		id, id, id,
+		id, id, id,
+		id, id,
+		id, id, id, id, value, cursor.LastID, []int{m.FSBlock2To1, m.FSBlock1To2, m.FSBothBlocked},
+		id, id, id, id, "*"+value+"*", cursor.LastID, []int{m.FSBlock2To1, m.FSBlock1To2, m.FSBothBlocked}, cursor.PageSize+1,
+		m.FSAdded, m.FSReq1To2, m.FSBlock2To1, id).Scan(&result).Error
 	if err := errorsx.HandleError(err); err != nil {
 		return cursor, nil, err
 	}
-
 	if len(result) > cursor.PageSize {
 		result = result[:len(result)-1]
 		cursor.LastID = result[len(result)-1].UID

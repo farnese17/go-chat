@@ -144,7 +144,7 @@ func (s *SQLGroupRepository) UpdateLastTime(data []*m.GroupLastActiveTime) error
 	idStr := strings.Join(ids, ",")
 	query := fmt.Sprintf("UPDATE `group` SET last_time = %s WHERE gid IN (%s)", caseStr, idStr)
 
-	return s.db.Exec(query).Error
+	return s.db.Debug().Exec(query).Error
 }
 
 func (s *SQLGroupRepository) HandOverOwner(from, to uint, gid uint) error {
@@ -201,7 +201,7 @@ func (s *SQLGroupRepository) QueryRole(gid uint, uid ...uint) ([]*m.GroupMemberR
 				user.username,
 				g.name AS groupname`).
 		Joins("JOIN `group` AS g ON g.gid = ?", gid).
-		Joins("LEFT JOIN group_Person AS gp ON gp.group_id = g.gid AND gp.member_id = user.id").
+		Joins("LEFT JOIN group_person AS gp ON gp.group_id = g.gid AND gp.member_id = user.id").
 		Where("user.id IN ?", uid).
 		Find(&roles).Error
 	if err := errorsx.HandleError(err); err != nil {

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"time"
 
 	m "github.com/farnese17/chat/service/model"
 	"github.com/farnese17/chat/utils/errorsx"
@@ -66,11 +67,13 @@ func (s *SQLUserRepository) Delete(id uint) error {
 	return errorsx.HandleError(err)
 }
 
+// updated_at > lasttime用于缓存增量预热
 func (s *SQLUserRepository) GetBanned(cursor *m.Cursor, lasttime int64) ([]*m.BanStatus, *m.Cursor, error) {
 	var users []*m.BanStatus
+	now := time.Now().Unix()
 	err := s.db.Model(&m.User{}).Limit(cursor.PageSize+1).
-		Where("id > ? AND updated_at > ? AND ban_level != ?",
-			cursor.LastID, lasttime, m.BanLevelNone).
+		Where("id > ? AND updated_at > ? AND ban_expire_at > ? AND ban_level != ?",
+			cursor.LastID, lasttime, now, m.BanLevelNone).
 		Find(&users).Error
 	if err := errorsx.HandleError(err); err != nil {
 		return nil, cursor, err

@@ -670,11 +670,9 @@ func (w *warmer) warmBannedUser(s Service) error {
 		now := time.Now().Unix()
 		for _, user := range users {
 			expire := user.BanExpireAt - now
-			if expire > 0 {
-				w.fillingBloomFilter(user.ID, user.BanLevel, user.BanExpireAt)
-				key := m.CacheBanned + strconv.Itoa(int(user.ID))
-				s.Cache().Set(key, user.BanLevel, time.Duration(expire)*time.Second)
-			}
+			w.fillingBloomFilter(user.ID, user.BanLevel, user.BanExpireAt)
+			key := m.CacheBanned + strconv.Itoa(int(user.ID))
+			s.Cache().Set(key, user.BanLevel, time.Duration(expire)*time.Second)
 		}
 		cursor = c
 		if err := s.Cache().Flush(); err != nil {

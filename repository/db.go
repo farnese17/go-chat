@@ -90,7 +90,7 @@ func fixAutoIncrement(db *gorm.DB) error {
 
 func timeoutMiddleware(timeout time.Duration) func(*gorm.DB) {
 	return func(db *gorm.DB) {
-		operations := []string{"create", "query", "update", "delete", "row", "raw"}
+		operations := []string{"create", "query", "update", "delete"}
 		for _, op := range operations {
 			t := timeout * 2
 			processor := db.Callback().Create()
@@ -102,10 +102,6 @@ func timeoutMiddleware(timeout time.Duration) func(*gorm.DB) {
 				processor = db.Callback().Update()
 			case "delete":
 				processor = db.Callback().Delete()
-			case "raw":
-				processor = db.Callback().Raw()
-			case "row":
-				processor = db.Callback().Row()
 			}
 			processor.Before("gorm:"+op).Register("timeout:before_"+op, func(d *gorm.DB) {
 				ctx, cancel := context.WithTimeout(context.Background(), t)

@@ -11,10 +11,10 @@ type User struct {
 	CreatedAt   int64          `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt   int64          `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index;column:deleted_at"`
-	Username    string         `json:"username" gorm:"type:varchar(8);not null" validate:"required,min=2,max=8,username" label:"用户名"`
+	Username    string         `json:"username" gorm:"index:,class:FULLTEXT;type:varchar(8);not null" validate:"required,min=2,max=8,username" label:"用户名"`
 	Password    string         `json:"password" gorm:"type:varchar(64);not null" validate:"required,pwlength,nospace" label:"密码" `
-	Phone       string         `json:"phone" gorm:"type:varchar(11);unique;default:null;index" validate:"omitempty,mobile" label:"手机号"`
-	Email       string         `json:"email" gorm:"type:varchar(30);unique;default:null;index" validate:"omitempty,email" label:"邮箱"`
+	Phone       string         `json:"phone" gorm:"type:varchar(11);unique;default:null" validate:"omitempty,mobile" label:"手机号"`
+	Email       string         `json:"email" gorm:"type:varchar(30);unique;default:null" validate:"omitempty,email" label:"邮箱"`
 	Avatar      string         `json:"avatar"`
 	BanLevel    int            `json:"ban_level" gorm:"type:int;column:ban_level"`
 	BanExpireAt int64          `json:"ban_expire_at" gorm:"default:null;column:ban_expire_at"`
@@ -62,7 +62,7 @@ const (
 
 type Group struct {
 	GID       uint   `json:"gid" gorm:"primarykey;autoincrement;column:gid"`
-	Name      string `json:"name" gorm:"type:varchar(20);index" validate:"max=20" label:"群组名称"`
+	Name      string `json:"name" gorm:"type:varchar(20)" validate:"max=20" label:"群组名称"`
 	Owner     uint   `json:"owner" gorm:"not null" validate:"required,uid" label:"id"`
 	Founder   uint   `json:"founder" gorm:"not null"`
 	Desc      string `json:"desc" gorm:"type:varchar(255)" validate:"max=255"`
