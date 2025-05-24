@@ -12,16 +12,15 @@ import (
 	"go.uber.org/zap"
 )
 
-var Version string = "dev"
-
 func main() {
-	var showVersion bool
 	var configPath string
-	flag.BoolVar(&showVersion, "version", false, "show version information")
+	var showInfo bool
 	flag.StringVar(&configPath, "config", "", "configuration file path")
+	flag.BoolVar(&showInfo, "info", false, "show app information")
 	flag.Parse()
-	if showVersion {
-		fmt.Println(Version)
+	if showInfo {
+		fmt.Println("APP: " + "go-chat")
+		fmt.Println("GitHub: " + "https://github.com/farnese17/go-chat.git")
 		os.Exit(0)
 	}
 
@@ -43,13 +42,19 @@ func main() {
 
 	managerRouter := router.SetupManagerRouter("release")
 	go func() {
-		if err := managerRouter.Run(":6000"); err != nil {
+		addr := service.Config().Common().ManagerAddress()
+		port := service.Config().Common().ManagerPort()
+		fmt.Println("Manager API: " + addr + ":" + port)
+		if err := managerRouter.Run(fmt.Sprintf("%s:%s", addr, port)); err != nil {
 			service.Logger().Fatal("Failed to load router", zap.Error(err))
 		}
 	}()
 
 	r := router.SetupRouter("release")
-	err := r.Run(":3000")
+	addr := service.Config().Common().HttpAddress()
+	port := service.Config().Common().HttpPort()
+	fmt.Println("HTTP API: " + addr + ":" + port)
+	err := r.Run(fmt.Sprintf("%s:%s", addr, port))
 	if err != nil {
 		service.Logger().Fatal("Failed to load router", zap.Error(err))
 	}

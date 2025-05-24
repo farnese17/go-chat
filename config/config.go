@@ -35,6 +35,8 @@ func LoadConfig(path string) Config {
 	// default
 	defaultCfg := &config_{
 		Common_: &Common_{
+			HttpPort_:          ":3000",
+			ManagerPort_:       ":6000",
 			Path_:              path,
 			LogDir_:            "./chat/log/",
 			RetryDelay_:        400 * time.Millisecond,
@@ -297,6 +299,10 @@ func (cfg *config_) SetCache(k, v string) error {
 }
 
 type Common_ struct {
+	HttpAddress_       string        `yaml:"http_address" json:"http_address" comment:"服务器地址"`
+	Manager_Address_   string        `yaml:"manager_address" json:"manager_address" comment:"管理服务器地址"`
+	HttpPort_          string        `yaml:"http_port" json:"http_port" comment:"端口"`
+	ManagerPort_       string        `yaml:"manager_port" json:"manager_port" comment:"管理端口"`
 	Path_              string        `yaml:"path" json:"path" comment:"配置文件路径"`
 	LogDir_            string        `yaml:"log_dir" json:"log_dir" comment:"日志目录"`
 	RetryDelay_        time.Duration `yaml:"retry_delay" json:"retry_delay" comment:"重试退避基数"`
@@ -310,6 +316,10 @@ type Common_ struct {
 }
 
 type Common interface {
+	HttpPort() string
+	HttpAddress() string
+	ManagerPort() string
+	ManagerAddress() string
 	LogDir() string
 	RetryDelay(n int) time.Duration
 	MaxRetries() int
@@ -318,6 +328,22 @@ type Common interface {
 	CheckAckTimeout() time.Duration
 	MessageAckTiemout() time.Duration
 	ResendBatchSize() int64
+}
+
+func (c *Common_) HttpPort() string {
+	return c.HttpPort_
+}
+
+func (c *Common_) HttpAddress() string {
+	return c.HttpAddress_
+}
+
+func (c *Common_) ManagerPort() string {
+	return c.ManagerPort_
+}
+
+func (c *Common_) ManagerAddress() string {
+	return c.Manager_Address_
 }
 
 func (c *Common_) LogDir() string {
