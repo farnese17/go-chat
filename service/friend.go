@@ -160,7 +160,6 @@ func (f *FriendService) updateStatus(ctx *updateFriendContext,
 		id1, id2 := f.sortID(ctx.from, ctx.to)
 		ctx.friend.User1 = id1
 		ctx.friend.User2 = id2
-		// ctx.friend.CreatedAt = time.Now()
 		ctx.friend.Status = ctx.status
 		ctx.friend.Version += 1
 		if err := f.service.Friend().UpdateStatus(ctx.friend); err != nil {
@@ -559,22 +558,10 @@ func (f *FriendService) List(id uint) (map[string][]*m.SummaryFriendInfo, error)
 		break
 	}
 
-	// sort.Slice(friends, func(i, j int) bool {
-	// 	a, b := friends[i].Name, friends[j].Name
-	// 	if friends[i].Remark != "" {
-	// 		a = friends[i].Remark
-	// 	}
-	// 	if friends[j].Remark != "" {
-	// 		b = friends[j].Remark
-	// 	}
-	// 	return a < b
-	// })
-
 	data := make(map[string][]*m.SummaryFriendInfo)
 	for _, friend := range friends {
 		if id < friend.UID {
 			if friend.Status == m.FSBlock2To1 {
-				// continue
 				data["other_blocked"] = append(data["other_blocked"], friend)
 			}
 			if friend.Status == m.FSBlock1To2 || friend.Status == m.FSBothBlocked {
@@ -584,7 +571,6 @@ func (f *FriendService) List(id uint) (map[string][]*m.SummaryFriendInfo, error)
 			}
 		} else {
 			if friend.Status == m.FSBlock1To2 {
-				// continue
 				data["other_blocked"] = append(data["other_blocked"], friend)
 			}
 			if friend.Status == m.FSBlock2To1 || friend.Status == m.FSBothBlocked {

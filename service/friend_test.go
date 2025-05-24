@@ -585,9 +585,6 @@ func TestFriendList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := f.List(uid)
 			assert.Equal(t, tt.expectedErr, err)
-			// if !reflect.DeepEqual(tt.expected, got) {
-			// 	t.Errorf("\nwant: %v\ngot:  %v", tt.expected, got)
-			// }
 			assert.Equal(t, tt.expected, got)
 		})
 	}

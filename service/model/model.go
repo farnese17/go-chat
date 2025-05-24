@@ -186,17 +186,6 @@ type SummaryFriendInfo struct {
 	BanExpireAt int64  `json:"ban_expire_at"`
 }
 
-// type contextKey int
-
-// const (
-// 	CancelKey contextKey = iota
-// 	TxKey
-// 	RollbackKey
-// 	DataKey
-// 	ExpectedRoleKey
-// 	CurrentRoleKey
-// )
-
 type Cursor struct {
 	PageSize int  `json:"page_size"`
 	LastID   uint `json:"last_id"`

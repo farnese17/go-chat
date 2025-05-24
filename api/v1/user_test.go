@@ -38,7 +38,7 @@ var (
 func TestMain(m *testing.M) {
 	// addr := "root:123456@tcp(127.0.0.1:33060)/chat_test?charset=utf8mb4&parseTime=True&loc=Local"
 
-	s = registry.SetupService()
+	s = registry.SetupService("")
 	defer s.Shutdown()
 	v1.SetupUserService(s)
 	v1.SetupGroupService(s)

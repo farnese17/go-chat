@@ -156,29 +156,6 @@ func TestGetConfig(t *testing.T) {
 	assert.JSONEq(t, string(expected), string(got))
 }
 
-// func TestSetConfig(t *testing.T) {
-// 	setupAdmins(t)
-
-// 	url := "/api/v1/managers/config/set"
-// 	t.Run("set cache max_groups", func(t *testing.T) {
-// 		origin := s.Config().Cache().MaxGroups()
-// 		setConfig(t, url, "cache", "max_groups", "1")
-// 		assert.Equal(t, 1, s.Config().Cache().MaxGroups())
-
-// 		setConfig(t, url, "cache", "max_groups", fmt.Sprintf("%d", origin))
-// 		assert.Equal(t, origin, s.Config().Cache().MaxGroups())
-// 	})
-
-// 	t.Run("set common max_retries", func(t *testing.T) {
-// 		origin := s.Config().Common().MaxRetries()
-// 		setConfig(t, url, "common", "max_retries", "1")
-// 		assert.Equal(t, 1, s.Config().Common().MaxRetries())
-
-// 		setConfig(t, url, "common", "max_retries", fmt.Sprintf("%d", origin))
-// 		assert.Equal(t, origin, s.Config().Common().MaxRetries())
-// 	})
-// }
-
 func setConfig(t *testing.T, url, section, key, value string) {
 	body, _ := json.Marshal(map[string]any{"section": section, "key": key, "value": value})
 	resp := testNoError(t, managerRouter, url, "PUT", adminIDs["write"], bytes.NewBuffer(body))
@@ -351,7 +328,6 @@ func TestGetAdmins(t *testing.T) {
 	expected := []*model.Manager{
 		{ID: 1001, Permissions: model.MgrSuperAdministrator, Username: "super_admin", Email: "super_admin@mail.com"},
 		{ID: 1002, Permissions: model.MgrWriteAndRead, Username: "write_admin", Email: "write_admin@mail.com"},
-		// {ID: 1003, Permissions: model.MgrOnlyRead, Username: "read_admin", Email: "read_admin@mail.com"},
 	}
 	wg := sync.WaitGroup{}
 	for _, id := range adminIDs {

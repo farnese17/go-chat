@@ -116,7 +116,6 @@ func validateVar(data interface{}, tag string) string {
 
 func Mobile(fl validator.FieldLevel) bool {
 	phone := fl.Field().String()
-	// `^(1[3|4|5|8][0-9]\d{8})$`
 	if m, _ := regexp.MatchString(`^[1][3-9][0-9]{9}$`, phone); !m {
 		return false
 	}
@@ -125,20 +124,11 @@ func Mobile(fl validator.FieldLevel) bool {
 
 func Email(fl validator.FieldLevel) bool {
 	email := fl.Field().String()
-	// `^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)*@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$`
 	if m, _ := regexp.MatchString(`^[a-zA-Z0-9]+([._-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*(\.[a-zA-Z0-9]{2,})+$`, email); !m {
 		return false
 	}
 	return true
 }
-
-// func UID(fl validator.FieldLevel) bool {
-// 	uid := fl.Field().String()
-// 	if m, _ := regexp.MatchString(`^[1-9][0-9]{5,8}$`, uid); !m {
-// 		return false
-// 	}
-// 	return true
-// }
 
 func PasswordLength(fl validator.FieldLevel) bool {
 	pw := fl.Field().String()
@@ -231,15 +221,6 @@ func ValidateRemark(remark string) error {
 	}
 	return nil
 }
-
-// func ValidID(ids ...uint) error {
-// 	for _, id := range ids {
-// 		if err := ValidateUID(id); err != nil {
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }
 
 func ValidateGIDAndUID(gid uint, uid ...uint) error {
 	if err := ValidateGID(gid); err != nil {

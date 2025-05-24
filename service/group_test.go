@@ -459,72 +459,6 @@ func TestApply(t *testing.T) {
 	}
 }
 
-// func TestGetCacheMembers(t *testing.T) {
-//  setup(t)
-//  defer clear(t)
-
-//  members := []string{"100001", "100002"}
-
-//  tests := []struct {
-//      mock     []string
-//      mockErr  error
-//      expected []uint
-//  }{
-//      {members, nil, []uint{uid, uid + 1}},
-//      {nil, errorsx.ErrNotFound, nil},
-//  }
-
-//  for i, tt := range tests {
-//      mockc.EXPECT().GetFromSortedSet(gomock.Any(), gomock.Any(), gomock.Any()).Return(tt.mock, tt.mockErr)
-//      t.Run(fmt.Sprintf("getCacheMembers %d", i), func(t *testing.T) {
-//          data := g.GetCacheMembers(gid, gomock.Any().String(), gomock.Any().String())
-//          assert.Equal(t, tt.expected, data)
-//      })
-//  }
-// }
-
-// func TestGetMembersAndCache(t *testing.T) {
-//  setup(t)
-//  defer clear(t)
-
-//  members := []*model.GroupMemberRole{
-//      {MemberID: uid, Role: model.Owner},
-//      {MemberID: uid + 1, Role: model.Admin},
-//      {MemberID: uid + 2, Role: model.Member},
-//      {MemberID: uid + 3, Role: model.Applied},
-//      {MemberID: uid + 4, Role: model.Invited},
-//      {MemberID: uid + 5, Role: model.Ban},
-//      {MemberID: uid + 6, Role: 0},
-//      {MemberID: uid + 7, Role: -999},
-//      {MemberID: uid + 8, Role: 999},
-//  }
-
-//  tests := []struct {
-//      mock        []*model.GroupMemberRole
-//      mockErr     error
-//      expected    []uint
-//      expectedErr error
-//      filter      func([]*model.GroupMemberRole, *[]uint)
-//      mockAll     bool
-//  }{
-//      {nil, errors.New("error"), nil, errorsx.ErrFailed, nil, false},
-//      {members, nil, []uint{uid, uid + 1}, nil, g.FilterAdmins, true},
-//      {members, nil, []uint{uid, uid + 1, uid + 2}, nil, g.FilterAllMembers, true},
-//  }
-
-//  for i, tt := range tests {
-//      mockg.EXPECT().GetMembersID(gid).Return(tt.mock, tt.mockErr)
-//      if tt.mockAll {
-//          mockc.EXPECT().StoreToSortedSet(gomock.Any(), gomock.Any(), gomock.Any()).Return().Times(len(members))
-//      }
-//      t.Run(fmt.Sprintf("get members and cache %d", i), func(t *testing.T) {
-//          data, err := g.GetMembersAndCache(gid, tt.filter)
-//          assert.Equal(t, tt.expected, data)
-//          assert.Equal(t, tt.expectedErr, err)
-//      })
-//  }
-// }
-
 func TestAcceptInvite(t *testing.T) {
 	setup(t)
 	defer clear(t)
@@ -1052,12 +986,6 @@ func TestAdminResign(t *testing.T) {
 		})
 	}
 }
-
-// func TestReleaseAnnounce(t *testing.T) {
-//  announce := &model.GroupAnnouncement{
-
-//  }
-// }
 
 func TestWS(t *testing.T) {
 	setup(t)

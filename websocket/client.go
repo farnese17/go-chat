@@ -95,12 +95,6 @@ func (c *Client) Read() {
 				return
 			}
 			c.service.Hub().SendToAck(msg)
-		// case UpdateBlackList:
-		// 	msg, err := c.parseMessage(body)
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// 	c.service.Hub().SendUpdateBlockedListNotify(msg)
 		default:
 			c.service.Logger().Error("Unknow websocket message type", zap.String("message", string(p)))
 			return

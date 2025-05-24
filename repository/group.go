@@ -144,7 +144,7 @@ func (s *SQLGroupRepository) UpdateLastTime(data []*m.GroupLastActiveTime) error
 	idStr := strings.Join(ids, ",")
 	query := fmt.Sprintf("UPDATE `group` SET last_time = %s WHERE gid IN (%s)", caseStr, idStr)
 
-	return s.db.Debug().Exec(query).Error
+	return s.db.Exec(query).Error
 }
 
 func (s *SQLGroupRepository) HandOverOwner(from, to uint, gid uint) error {
@@ -271,17 +271,6 @@ func (s *SQLGroupRepository) ViewAnnounce(gid, uid any, cursor *m.Cursor) ([]*m.
 
 	return announce, cursor, nil
 }
-
-// func (s *SQLGroupRepository) ViewLatestAnnounce(gid uint) (*m.GroupAnnounceInfo, error) {
-// 	var announce *m.GroupAnnounceInfo
-// 	err := s.db.Table("group_announcement AS ga").
-// 		Select("ga.id,ga.content,ga.updated_at,u.username AS created_by").
-// 		Joins("LEFT JOIN `user` AS u ON u.id = created_by").
-// 		Where("groupid = ?", gid).
-// 		Order("ga.id DESC").
-// 		First(&announce).Error
-// 	return announce, errorsx.HandleError(err)
-// }
 
 func (s *SQLGroupRepository) DeleteAnnounce(gid, uid, announceID uint) error {
 	sql := `DELETE ga FROM group_announcement AS ga

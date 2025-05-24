@@ -2,7 +2,6 @@ package registry
 
 import (
 	"database/sql"
-	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -35,9 +34,9 @@ type Service interface {
 	Shutdown()
 }
 
-func SetupService() Service {
+func SetupService(configPath string) Service {
 	var err error
-	service, err = initRegistry()
+	service, err = initRegistry(configPath)
 	if err != nil {
 		panic(err)
 	}
@@ -74,8 +73,8 @@ func getDSN(cfg config.Config) string {
 	return dsn
 }
 
-func initRegistry() (*registry, error) {
-	cfgPath := findConfigFile()
+func initRegistry(configPath string) (*registry, error) {
+	cfgPath := findConfigFile(configPath)
 	cfg := config.LoadConfig(cfgPath)
 	logger := logger.SetupLogger()
 	validator.SetupValidator()
@@ -180,10 +179,10 @@ func (r *registry) Shutdown() {
 	r.logger.Sync()
 }
 
-func findConfigFile() string {
-	var path string
-	flag.StringVar(&path, "config", "", "configuration file path")
-	flag.Parse()
+func findConfigFile(path string) string {
+	// var path string
+	// flag.StringVar(&path, "config", "", "configuration file path")
+	// flag.Parse()
 	if path != "" {
 		return path
 	}

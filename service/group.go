@@ -124,7 +124,6 @@ func (g *GroupService) Update(from, gid uint, column string, value string) error
 		}
 		g.service.Logger().Error("Failed to update group information", zap.Error(err))
 		return err
-		// return err
 	}
 	return nil
 }
@@ -165,7 +164,6 @@ func (g *GroupService) Delete(gid uint, uid uint) error {
 		g.storeOfflineMessage(message, members...)
 		return errorsx.ErrHandleSuccessed
 	}
-	// hub.SendDeleteGroupNotify(message)
 	hub.SendToBroadcast(message)
 	return nil
 }
@@ -787,17 +785,6 @@ func (g *GroupService) removeCacheMember(gid, uid uint) error {
 	return errorsx.ErrHandleSuccessed
 }
 
-// Ban
-// func (g *GroupService) Ban(from, to string, gid uint) error {
-//  return nil
-// }
-
-// 解除Ban
-// func (g *GroupService) RemoveBan() {}
-
-// 禁止成员列表
-// func (g *GroupService) BanList() {}
-
 func (g *GroupService) msgIsValid(msgTime int64) bool {
 	now := time.Now().UnixMilli()
 	validDays := g.service.Config().Common().InviteValidDays()
@@ -830,9 +817,6 @@ func (g *GroupService) ReleaseAnnounce(data *m.GroupAnnouncement) error {
 
 // 删除公告
 func (g *GroupService) DeleteAnnounce(uid, gid, announceID uint) error {
-	// if err := g.hasManageAnnouncementPermission(gid, uid); err != nil {
-	//  return err
-	// }
 	if err := g.service.Group().DeleteAnnounce(gid, uid, announceID); err != nil {
 		if err == errorsx.ErrNoAffectedRows {
 			return errorsx.ErrPermissiondenied
@@ -847,9 +831,6 @@ func (g *GroupService) ViewAnnounce(uid, gid uint, cursor *m.Cursor) (map[string
 	if err := validator.VerfityPageSize(cursor.PageSize); err != nil {
 		return nil, err
 	}
-	// if err := g.hasViewAnnouncementPermission(gid, uid); err != nil {
-	//  return nil, err
-	// }
 	announce, cursor, err := g.service.Group().ViewAnnounce(gid, uid, cursor)
 	if err != nil {
 		return nil, errorsx.ErrOperactionFailed
@@ -860,9 +841,6 @@ func (g *GroupService) ViewAnnounce(uid, gid uint, cursor *m.Cursor) (map[string
 
 // 查看最新公告
 func (g *GroupService) ViewLatestAnnounce(uid, gid uint) (*m.GroupAnnounceInfo, error) {
-	// if err := g.hasViewAnnouncementPermission(gid, uid); err != nil {
-	//  return nil, err
-	// }
 	announce, _, err := g.service.Group().ViewAnnounce(gid, uid, nil)
 	if err != nil {
 		return nil, err
@@ -885,7 +863,6 @@ func (g *GroupService) hasPermissionOfAnnounce(gid, uid uint, roles ...int) erro
 	ctx := &m.MemberStatusContext{
 		GID:  gid,
 		From: uid,
-		// To:   uid,
 	}
 	ctx, err := g.QueryRole(ctx)
 	if err != nil {

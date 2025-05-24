@@ -11,24 +11,6 @@ import (
 
 var logger *zap.Logger
 
-// func SetupLogger() *zap.Logger {
-// 	config := zap.Config{
-// 		Level:            zap.NewAtomicLevelAt(zap.DebugLevel),
-// 		Development:      true,
-// 		Encoding:         "json",
-// 		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
-// 		OutputPaths:      []string{"./chat.log"},
-// 		ErrorOutputPaths: []string{"stderr"},
-// 	}
-// 	var err error
-// 	logger, err = config.Build()
-// 	if err != nil {
-// 		log.Fatalf("Failed to initialize logger: %v", err)
-// 	}
-
-// 	return logger
-// }
-
 func SetupLogger() *zap.Logger {
 	logPath := config.GetConfig().Common().LogDir()
 	logPath = path.Clean(logPath)

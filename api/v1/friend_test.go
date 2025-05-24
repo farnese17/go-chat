@@ -280,37 +280,6 @@ func TestGetFriendList(t *testing.T) {
 	wg.Wait()
 }
 
-// func TestGetBlockedMeList(t *testing.T) {
-// 	setupTestData()
-// 	clearFriendData()
-// 	n := len(testData) / 10
-// 	genFriendListTestData(n, m.FSBlock2To1)
-
-// 	expected := make([]any, n)
-// 	for i := range expected {
-// 		expected[i] = float64(testData[i].ID)
-// 	}
-
-// 	wg := &sync.WaitGroup{}
-// 	for i := range n {
-// 		wg.Add(1)
-// 		go func() {
-// 			defer wg.Done()
-// 			id := testData[i].ID
-// 			t.Run(fmt.Sprintf("get blocked me list %d", id), func(t *testing.T) {
-// 				req := httptest.NewRequest("GET", "/api/v1/friend/blockedmelist", nil)
-// 				addToken(id, req)
-// 				w := httptest.NewRecorder()
-// 				route.ServeHTTP(w, req)
-
-// 				resp := equalHttpResp(t, w)
-// 				assert.Equal(t, expected[i+1:n], resp["data"])
-// 			})
-// 		}()
-// 	}
-// 	wg.Wait()
-// }
-
 func genFriendListTestData(n int, status int) {
 	for i := 0; i < n; i++ {
 		for j := i + 1; j < n; j++ {
