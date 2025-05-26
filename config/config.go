@@ -35,8 +35,8 @@ func LoadConfig(path string) Config {
 	// default
 	defaultCfg := &config_{
 		Common_: &Common_{
-			HttpPort_:          ":3000",
-			ManagerPort_:       ":6000",
+			HttpPort_:          "8080",
+			ManagerPort_:       "9000",
 			Path_:              path,
 			LogDir_:            "./chat/log/",
 			RetryDelay_:        400 * time.Millisecond,
