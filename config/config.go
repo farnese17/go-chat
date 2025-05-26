@@ -31,9 +31,8 @@ type Config interface {
 	SetCache(k, v string) error
 }
 
-func LoadConfig(path string) Config {
-	// default
-	defaultCfg := &config_{
+func GenerateDefaultConfig(path string) *config_ {
+	cfg := &config_{
 		Common_: &Common_{
 			HttpPort_:          "8080",
 			ManagerPort_:       "9000",
@@ -61,6 +60,11 @@ func LoadConfig(path string) Config {
 			LogPath_: "./chat/storage/storage.log",
 		},
 	}
+	return cfg
+}
+
+func LoadConfig(path string) Config {
+	defaultCfg := GenerateDefaultConfig(path)
 
 	config = defaultCfg
 	// load config
