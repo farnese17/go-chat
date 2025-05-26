@@ -95,6 +95,7 @@ func LoadConfig(path string) Config {
 	loadedCfg.Common_.Path_ = path
 	// 合并
 	loadedCfg = mergeConfig(defaultCfg, loadedCfg)
+	loadedCfg.getENV()
 	config = loadedCfg
 	loadedCfg.Save()
 	return loadedCfg
@@ -134,6 +135,45 @@ func mergeConfig(src, dest *config_) *config_ {
 	v1, v2 := reflect.ValueOf(src), reflect.ValueOf(dest)
 	merge(v1, v2)
 	return dest
+}
+
+func (cfg *config_) getENV() {
+	if logDir := os.Getenv("CHAT_LOG"); logDir != "" {
+		cfg.Common_.LogDir_ = logDir
+	}
+	if host := os.Getenv("CHAT_DBHOST"); host != "" {
+		cfg.Database_.Host_ = host
+	}
+	if port := os.Getenv("CHAT_DBPORT"); port != "" {
+		cfg.Database_.Port_ = port
+	}
+	if u := os.Getenv("CHAT_DBUSER"); u != "" {
+		cfg.Database_.User_ = u
+	}
+	if pwd := os.Getenv("CHAT_DBPASSWD"); pwd != "" {
+		cfg.Database_.Password_ = pwd
+	}
+	if dbName := os.Getenv("CHAT_DBNAME"); dbName != "" {
+		cfg.Database_.DbName_ = dbName
+	}
+	if host := os.Getenv("CHAT_REDISHOST"); host != "" {
+		if port := os.Getenv("CHAT_REDISPORT"); port != "" {
+			cfg.Cache_.Addr_ = fmt.Sprintf("%s:%s", host, port)
+		}
+	}
+	if pwd := os.Getenv("CHAT_REDISPASSWD"); pwd != "" {
+		cfg.Cache_.Password_ = pwd
+	}
+	if dbNum := os.Getenv("CHAT_REDISDB"); dbNum != "" {
+		db, _ := strconv.Atoi(dbNum)
+		cfg.Cache_.DbNum_ = db
+	}
+	if fsPath := os.Getenv("CHAT_STORAGE_PATH"); fsPath != "" {
+		cfg.FileServer_.Path_ = fsPath
+	}
+	if fsLogPath := os.Getenv("CHAT_STORAGE_LOG"); fsLogPath != "" {
+		cfg.FileServer_.LogPath_ = fsLogPath
+	}
 }
 
 func GetConfig() Config {
