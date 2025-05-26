@@ -502,7 +502,7 @@ func (cfg *Cache_) RetryDelay(n int) time.Duration {
 }
 
 type FileServer_ struct {
-	Addr_    string `yaml:"addr" json:"addr" comment:"文件储存系统地址"`
+	Addr_    string `yaml:"addr" json:"addr" comment:"文件储存系统地址,本地储存无需配置"`
 	Path_    string `yaml:"path" json:"path" comment:"文件储存目录"`
 	LogPath_ string `yaml:"log_path" comment:"文件储存系统日志"`
 }
