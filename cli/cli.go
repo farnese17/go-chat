@@ -12,7 +12,7 @@ func ParseFlags() string {
 	var configPath string
 	var showVersion bool
 	flag.StringVar(&configPath, "config", "", "configuration file path")
-	flag.BoolVar(&showVersion, "version", false, "show version information")
+	flag.BoolVar(&showVersion, "version", false, "print version information")
 	flag.Parse()
 	if showVersion {
 		fmt.Println("Version: " + Version)
