@@ -1,11 +1,10 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"os"
 
 	v1 "github.com/farnese17/chat/api/v1"
+	"github.com/farnese17/chat/cli"
 	"github.com/farnese17/chat/registry"
 	"github.com/farnese17/chat/repository"
 	"github.com/farnese17/chat/router"
@@ -13,17 +12,7 @@ import (
 )
 
 func main() {
-	var configPath string
-	var showInfo bool
-	flag.StringVar(&configPath, "config", "", "configuration file path")
-	flag.BoolVar(&showInfo, "info", false, "show app information")
-	flag.Parse()
-	if showInfo {
-		fmt.Println("APP: " + "go-chat")
-		fmt.Println("GitHub: " + "https://github.com/farnese17/go-chat.git")
-		os.Exit(0)
-	}
-
+	configPath := cli.ParseFlags()
 	service := registry.SetupService(configPath)
 	defer service.Shutdown()
 
