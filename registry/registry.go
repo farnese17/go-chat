@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/farnese17/chat/config"
 	"github.com/farnese17/chat/pkg/storage"
@@ -35,12 +36,19 @@ type Service interface {
 }
 
 func SetupService(configPath string) Service {
+	var service Service
 	var err error
-	service, err = initRegistry(configPath)
-	if err != nil {
-		panic(err)
+
+	for {
+		service, err = initRegistry(configPath)
+		if err != nil {
+			fmt.Println("Initial service failed: " + err.Error())
+			fmt.Println("Starting retry...")
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		return service
 	}
-	return service
 }
 
 func GetService() Service {
@@ -97,7 +105,7 @@ func initRegistry(configPath string) (*registry, error) {
 		DBName:   cfg.Database().DBname(),
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	reg := &registry{
