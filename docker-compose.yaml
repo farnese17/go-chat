@@ -1,0 +1,104 @@
+version: '3'
+
+networks:
+  gochat:
+    driver: bridge
+
+services:
+  mysql:
+    image: "mysql:5.7.42-debian"
+    container_name: "mysql"
+    restart: always
+    ports: 
+      - "3306:3306"
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: gochat
+      MYSQL_DATABASE: gochat
+      MYSQL_USER: gochat
+      MYSQL_PASSWORD: gochat
+    volumes:
+      - ./data/mysql/data:/var/lib/mysql
+      - ./data/mysql/conf.d:/etc/mysql
+    networks:
+      - gochat
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max-connections=2000
+      --wait-timeout=86400
+      --slow-query-log=ON
+      --slow-query-log-file=./data/mysql/mysql-slow.log
+      --long-query-time=1
+      --innodb-ft-min-token-size=1
+      --ft-min-word-len=1
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping","-h","localhost","-u","gochat","-pgochat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: "redis:latest"
+    container_name: "redis"
+    ports: 
+      - "6379:6379"
+    restart: always
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/redis/data:/data
+      - ./data/redis/config:/usr/local/etc/redis
+    networks:
+      - gochat
+    healthcheck:
+      test: ["CMD", "redis-cli","ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gochat:
+    image: gochat:0.9.0
+    restart: always
+    ports: 
+      - "8080:8080"
+      - "9000:9000"
+    networks:
+      - gochat
+    volumes:
+      - ./data/gochat/config:/gochat/config
+      - ./data/gochat/log:/gochat/log
+      - ./data/storage:/gochat/storage
+    environment:
+      CHAT_CONFIG: /gochat/config/config.yaml
+      CHAT_LOG: /gochat/log/chat.log
+      CHAT_DBHOST: mysql
+      CHAT_DBPORT: 3306
+      CHAT_DBUSER: gochat
+      CHAT_DBPASSWD: gochat
+      CHAT_DBNAME: gochat
+      CHAT_REDISHOST: redis
+      CHAT_REDISPORT: 6379
+      CHAT_REDISPASSWD: ""
+      CHAT_REDISDB: 0
+      CHAT_STORAGE_PATH: /gochat/storage/files/
+      CHAT_STORAGE_LOG: /gochat/storage/log/storage.log
+    depends_on:
+      - mysql 
+      - redis
+    command: >
+      /bin/sh -c "
+        echo 'Waiting for MySQL...' && 
+        while ! nc -z mysql 3306;do
+          echo 'MySQL is not ready yet, waiting...'
+          sleep 2;
+        done &&
+        echo 'MySQL is ready, Waiting for Redis...' && 
+        echo '' && 
+        while ! nc -z redis 6379;do
+          echo 'Redis is not ready yet, waiting...'
+          sleep 2;
+        done &&
+        echo 'Redis is ready, starting GoChat...' &&
+        /gochat/gochat
+      "
