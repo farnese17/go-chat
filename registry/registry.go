@@ -36,19 +36,13 @@ type Service interface {
 }
 
 func SetupService(configPath string) Service {
-	var service Service
 	var err error
 
-	for {
-		service, err = initRegistry(configPath)
-		if err != nil {
-			fmt.Println("Initial service failed: " + err.Error())
-			fmt.Println("Starting retry...")
-			time.Sleep(time.Second * 2)
-			continue
-		}
-		return service
+	service, err = initRegistry(configPath)
+	if err != nil {
+		panic(err)
 	}
+	return service
 }
 
 func GetService() Service {
@@ -81,6 +75,14 @@ func getDSN(cfg config.Config) string {
 	return dsn
 }
 
+func handleDBConnectError(err error) {
+	if err != nil {
+		fmt.Println("Initial db failed: " + err.Error())
+		fmt.Println("Starting retry...")
+		time.Sleep(time.Second * 2)
+	}
+}
+
 func initRegistry(configPath string) (*registry, error) {
 	cfgPath := findConfigFile(configPath)
 	cfg := config.LoadConfig(cfgPath)
@@ -88,24 +90,42 @@ func initRegistry(configPath string) (*registry, error) {
 	validator.SetupValidator()
 
 	dsn := getDSN(cfg)
-	db, sqlDB, err := repo.SetupSQL(dsn)
-	if err != nil {
-		return nil, err
-	}
-	redisClient, err := repo.SetupRedis(cfg)
-	if err != nil {
-		return nil, err
+	var db *gorm.DB
+	var sqlDB *sql.DB
+	var err error
+	for {
+		db, sqlDB, err = repo.SetupSQL(dsn)
+		if err != nil {
+			handleDBConnectError(err)
+			continue
+		}
+		break
 	}
 
-	fs, err := storage.NewLocalStorage(cfg.FileServer().Path(), cfg.FileServer().LogPath(), &storage.MysqlOption{
-		User:     cfg.Database().User(),
-		Password: cfg.Database().Password(),
-		Addr:     cfg.Database().Host(),
-		Port:     cfg.Database().Port(),
-		DBName:   cfg.Database().DBname(),
-	})
-	if err != nil {
-		return nil, err
+	var redisClient *redis.Client
+	for {
+		redisClient, err = repo.SetupRedis(cfg)
+		if err != nil {
+			handleDBConnectError(err)
+			continue
+		}
+		break
+	}
+
+	var fs storage.Storage
+	for {
+		fs, err = storage.NewLocalStorage(cfg.FileServer().Path(), cfg.FileServer().LogPath(), &storage.MysqlOption{
+			User:     cfg.Database().User(),
+			Password: cfg.Database().Password(),
+			Addr:     cfg.Database().Host(),
+			Port:     cfg.Database().Port(),
+			DBName:   cfg.Database().DBname(),
+		})
+		if err != nil {
+			handleDBConnectError(err)
+			continue
+		}
+		break
 	}
 
 	reg := &registry{
@@ -188,9 +208,6 @@ func (r *registry) Shutdown() {
 }
 
 func findConfigFile(path string) string {
-	// var path string
-	// flag.StringVar(&path, "config", "", "configuration file path")
-	// flag.Parse()
 	if path != "" {
 		return path
 	}
