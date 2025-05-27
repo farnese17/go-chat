@@ -60,6 +60,7 @@ func GenerateDefaultConfig(path string) *config_ {
 			LogPath_: "./chat/storage/storage.log",
 		},
 	}
+	cfg.getENV()
 	return cfg
 }
 
