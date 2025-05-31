@@ -17,8 +17,8 @@ import (
 
 type File struct {
 	ID         uint   `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name       string `json:"name" gorm:"type:varchar(50);not null"`
-	Path       string `json:"path" gorm:"type:varchar(200);not null"`
+	Name       string `json:"name" gorm:"type:varchar(255);not null"`
+	Path       string `json:"path" gorm:"type:varchar(255);not null"`
 	Hash       string `json:"hash" gorm:"type:varchar(100);not null;column:hash;index:idx_hash"`
 	UploadedBy uint   `json:"uploaded_by" gorm:"not null;column:uploaded_by"`
 	CreatedAt  int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
@@ -28,7 +28,7 @@ type File struct {
 type FileReference struct {
 	ID         uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	FileID     uint   `json:"file_id" gorm:"not null;column:file_id;index:idx_file_id"`
-	Name       string `json:"name" gorm:"type:varchar(50);not null"`
+	Name       string `json:"name" gorm:"type:varchar(255);not null"`
 	UploadedBy uint   `json:"uploaded_by" gorm:"not null;column:uploaded_by"`
 	CreatedAt  int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	DeletedAt  int64  `json:"deleted_at" gorm:"default:null;column:deleted_at"`
