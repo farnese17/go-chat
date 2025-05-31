@@ -6,6 +6,7 @@ package mock
 
 import (
 	reflect "reflect"
+	time "time"
 
 	config "github.com/farnese17/chat/config"
 	storage "github.com/farnese17/chat/pkg/storage"
@@ -94,20 +95,6 @@ func (mr *MockServiceMockRecorder) Group() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Group", reflect.TypeOf((*MockService)(nil).Group))
 }
 
-// Healthy mocks base method.
-func (m *MockService) Healthy() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Healthy")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Healthy indicates an expected call of Healthy.
-func (mr *MockServiceMockRecorder) Healthy() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Healthy", reflect.TypeOf((*MockService)(nil).Healthy))
-}
-
 // Hub mocks base method.
 func (m *MockService) Hub() websocket.HubInterface {
 	m.ctrl.T.Helper()
@@ -150,20 +137,6 @@ func (mr *MockServiceMockRecorder) Manager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Manager", reflect.TypeOf((*MockService)(nil).Manager))
 }
 
-// ReconnectToDB mocks base method.
-func (m *MockService) ReconnectToDB() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReconnectToDB")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReconnectToDB indicates an expected call of ReconnectToDB.
-func (mr *MockServiceMockRecorder) ReconnectToDB() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconnectToDB", reflect.TypeOf((*MockService)(nil).ReconnectToDB))
-}
-
 // SetHub mocks base method.
 func (m *MockService) SetHub(hub websocket.HubInterface) {
 	m.ctrl.T.Helper()
@@ -174,6 +147,18 @@ func (m *MockService) SetHub(hub websocket.HubInterface) {
 func (mr *MockServiceMockRecorder) SetHub(hub interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHub", reflect.TypeOf((*MockService)(nil).SetHub), hub)
+}
+
+// SetRunningAt mocks base method.
+func (m *MockService) SetRunningAt(t time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetRunningAt", t)
+}
+
+// SetRunningAt indicates an expected call of SetRunningAt.
+func (mr *MockServiceMockRecorder) SetRunningAt(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRunningAt", reflect.TypeOf((*MockService)(nil).SetRunningAt), t)
 }
 
 // Shutdown mocks base method.
@@ -200,6 +185,20 @@ func (m *MockService) Storage() storage.Storage {
 func (mr *MockServiceMockRecorder) Storage() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Storage", reflect.TypeOf((*MockService)(nil).Storage))
+}
+
+// Uptime mocks base method.
+func (m *MockService) Uptime() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Uptime")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// Uptime indicates an expected call of Uptime.
+func (mr *MockServiceMockRecorder) Uptime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Uptime", reflect.TypeOf((*MockService)(nil).Uptime))
 }
 
 // User mocks base method.

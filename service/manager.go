@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -9,6 +11,9 @@ import (
 	"github.com/farnese17/chat/utils"
 	"github.com/farnese17/chat/utils/errorsx"
 	"github.com/farnese17/chat/utils/validator"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/mem"
 )
 
 type Manager struct {
@@ -177,4 +182,59 @@ func (mgr *Manager) Login(id uint, password string) error {
 		return errorsx.ErrUsernameOrPasswordWrong
 	}
 	return nil
+}
+
+func (mgr *Manager) GetCPUState() map[string]any {
+	result := map[string]any{
+		"usage": "N/A",
+	}
+	p, err := cpu.Percent(time.Millisecond*200, false)
+	if err != nil || len(p) == 0 {
+		return result
+	}
+	result["usage"] = fmt.Sprintf("%.2f%%", p[0])
+	return result
+}
+
+func (mgr *Manager) GetMemoryState() map[string]any {
+	result := map[string]any{
+		"total": "N/A",
+		"used":  "N/A",
+		"usage": "N/A",
+	}
+	m, err := mem.VirtualMemory()
+	if err != nil || m == nil {
+		return result
+	}
+	const gib uint64 = 1024 * 1024 * 1024
+
+	result = map[string]any{
+		"total": fmt.Sprintf("%d GiB", m.Total/gib),
+		"used":  fmt.Sprintf("%d GiB", m.Used/gib),
+		"usage": fmt.Sprintf("%.2f%%", m.UsedPercent),
+	}
+	return result
+}
+
+func (mgr *Manager) GetDiskState() map[string]any {
+	result := map[string]any{
+		"total": "N/A",
+		"used":  "N/A",
+		"usage": "N/A",
+	}
+	currentDir, err := os.Getwd()
+	if err != nil {
+		currentDir = "/"
+	}
+	disk, err := disk.Usage(currentDir)
+	if err != nil || disk == nil {
+		return result
+	}
+	const gib uint64 = 1024 * 1024 * 1024
+	result = map[string]any{
+		"total": fmt.Sprintf("%d GiB", disk.Total/gib),
+		"used":  fmt.Sprintf("%d GiB", disk.Used/gib),
+		"usage": fmt.Sprintf("%.2f%%", disk.UsedPercent),
+	}
+	return result
 }

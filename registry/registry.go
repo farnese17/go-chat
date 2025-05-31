@@ -33,6 +33,8 @@ type Service interface {
 
 	SetHub(hub websocket.HubInterface)
 	Shutdown()
+
+	Uptime() time.Duration
 }
 
 func SetupService(configPath string) Service {
@@ -64,7 +66,8 @@ type registry struct {
 	hub        websocket.HubInterface
 	storage    storage.Storage
 
-	config config.Config
+	config    config.Config
+	runningAt time.Time
 }
 
 func getDSN(cfg config.Config) string {
@@ -129,13 +132,14 @@ func initRegistry(configPath string) (*registry, error) {
 	}
 
 	reg := &registry{
-		mu:      sync.RWMutex{},
-		db:      db,
-		sqlDB:   sqlDB,
-		rc:      redisClient,
-		logger:  logger,
-		config:  cfg,
-		storage: fs,
+		mu:        sync.RWMutex{},
+		db:        db,
+		sqlDB:     sqlDB,
+		rc:        redisClient,
+		logger:    logger,
+		config:    cfg,
+		storage:   fs,
+		runningAt: time.Now(),
 	}
 	reg.initRepository()
 	cache := repo.NewRedisCache(redisClient, reg)
@@ -152,6 +156,10 @@ func (r *registry) initRepository() {
 	r.friendRepo = repo.NewSQLFriendRepository(r.db)
 	r.groupRepo = repo.NewSQLGroupRepository(r.db)
 	r.mgrRepo = repo.NewSQLManagerRepository(r.db)
+}
+
+func (r *registry) Uptime() time.Duration {
+	return time.Since(r.runningAt)
 }
 
 func (r *registry) Config() config.Config {

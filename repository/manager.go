@@ -9,6 +9,8 @@ import (
 )
 
 type Manager interface {
+	Healthy() bool
+	Stats() map[string]any
 	Create(data *m.Manager) error
 	Delete(id uint) error
 	RestoreAdministrator(id uint) error
@@ -116,4 +118,38 @@ func (s *SQLManagerRepository) Get(id uint) (*m.Manager, error) {
 	var admin *m.Manager
 	err := s.db.Where("id = ?", id).First(&admin).Error
 	return admin, errorsx.HandleError(err)
+}
+
+func (s *SQLManagerRepository) Healthy() bool {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return false
+	}
+	err = sqlDB.Ping()
+	return err == nil
+}
+
+func (s *SQLManagerRepository) Stats() map[string]any {
+	res := map[string]any{
+		"connections":  "N/A",
+		"slow_queries": "N/A",
+		"latency":      "N/A",
+	}
+
+	var connections int64
+	err := s.db.Raw("SELECT COUNT(*) FROM information_schema.processlist").Scan(&connections).Error
+	if err == nil {
+		res["connections"] = connections
+	}
+
+	var slowQueries map[string]any
+	err = s.db.Raw("SHOW GLOBAL STATUS LIKE 'Slow_queries'").Scan(&slowQueries).Error
+	if err == nil && slowQueries != nil {
+		res["slow_queries"] = slowQueries["Value"]
+	}
+
+	start := time.Now()
+	s.Healthy()
+	res["latency"] = time.Since(start).Round(time.Millisecond).String()
+	return res
 }

@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"time"
+
 	ws "github.com/farnese17/chat/websocket"
 )
 
@@ -9,6 +11,11 @@ var HandleBlock chan *ws.ChatMsg
 var Confirm chan any
 
 type MockHub struct {
+}
+
+// Uptime implements websocket.HubInterface.
+func (m *MockHub) Uptime() time.Duration {
+	panic("unimplemented")
 }
 
 // SendToAck implements websocket.HubInterface.

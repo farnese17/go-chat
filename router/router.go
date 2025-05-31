@@ -117,6 +117,7 @@ func SetupManagerRouter(mode string) *gin.Engine {
 	hasReadPermissions.Use(middleware.CheckManagerPermissions(
 		model.MgrWriteAndRead, model.MgrSuperAdministrator, model.MgrOnlyRead))
 	{
+		hasReadPermissions.GET("healthy", v1.Healthy)
 		hasReadPermissions.GET("/config", v1.GetConfig)
 		hasReadPermissions.GET("/users/banned", v1.BannedUserList)
 		hasReadPermissions.GET("/users/banned/count", v1.CountBannedUser)

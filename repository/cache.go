@@ -9,6 +9,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,8 @@ import (
 )
 
 type Cache interface {
+	Healthy() bool
+	Stats() map[string]any
 	StartFlush()
 	Stop()
 	Get(key string) (string, error)
@@ -99,12 +102,72 @@ func (rc *RedisCache) StartFlush() {
 	}
 }
 
+func (rc *RedisCache) Healthy() bool {
+	err := rc.client.Ping().Err()
+	return err == nil
+}
+
+func (rc *RedisCache) Stats() map[string]any {
+	res := map[string]any{
+		"clients":            "N/A",
+		"memory_total":       "N/A",
+		"memory_used":        "N/A",
+		"latency":            "N/A",
+		"commands_processed": "N/A",
+		"uptime":             "N/A",
+	}
+
+	start := time.Now()
+	rc.Healthy()
+	res["latency"] = time.Since(start).Round(time.Millisecond).String()
+
+	info, err := rc.client.Info().Result()
+	if err != nil {
+		return res
+	}
+	infoMap := rc.parseInfo(info)
+	res["clients"] = infoMap["connected_clients"]
+	res["memory_total"] = infoMap["total_system_memory_human"]
+	res["memory_used"] = infoMap["used_memory_human"]
+	res["commands_processed"] = infoMap["total_commands_processed"]
+
+	uptimeSeconds, ok := infoMap["uptime_in_seconds"].(string)
+	if !ok {
+		return res
+	}
+	uptime, err := time.ParseDuration(uptimeSeconds + "s")
+	if err != nil {
+		return res
+	}
+	res["uptime"] = uptime.Round(time.Second).String()
+
+	return res
+}
+
+func (rc *RedisCache) parseInfo(info string) map[string]any {
+	res := make(map[string]any)
+	lines := strings.Split(info, "\r\n")
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 {
+			res[parts[0]] = parts[1]
+		}
+	}
+	return res
+}
+
 func (rc *RedisCache) Stop() {
 	rc.BFM().Stop()
 	close(rc.done)
 	rc.set(m.CacheLatestWarmTime, time.Now().Unix(), 0)
 	rc.execAndReset()
 }
+
 func (rc *RedisCache) Flush() error {
 	atomic.StoreInt32(rc.count, 0)
 	_, err := rc.pipe.Exec()

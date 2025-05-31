@@ -2,8 +2,10 @@ package v1
 
 import (
 	"errors"
+	"net/http"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/farnese17/chat/middleware"
 	"github.com/farnese17/chat/registry"
@@ -360,4 +362,92 @@ func AdminLogin(c *gin.Context) {
 		s.Cache().SetToken(uint(id), token, s.Config().Common().TokenValidPeriod())
 		return token, nil
 	})
+}
+
+func Healthy(c *gin.Context) {
+	s := registry.GetService()
+	details, _ := strconv.ParseBool(c.Query("details"))
+
+	importantStatus := importantHealthyStatus(s)
+	if !details {
+		c.JSON(http.StatusOK, importantStatus)
+		return
+	}
+
+	detailStatus := detailHealthyStatus(s)
+	c.JSON(http.StatusOK, detailStatus)
+}
+
+func importantHealthyStatus(s registry.Service) map[string]any {
+	wsStatus := "up"
+	dbStatus := "up"
+	rcStatus := "up"
+	total := 3
+	downCount := 0
+	if s.Hub() == nil || s.Hub().IsClosed() {
+		wsStatus = "down"
+		downCount++
+	}
+	if !s.Manager().Healthy() {
+		dbStatus = "down"
+		downCount++
+	}
+	if !s.Cache().Healthy() {
+		rcStatus = "down"
+		downCount++
+	}
+
+	status := "healthy"
+	if downCount > 0 && downCount < total {
+		status = "degraded"
+	} else if downCount == total {
+		status = "critical"
+	}
+
+	return map[string]any{
+		"status": status,
+		"uptime": s.Uptime(),
+		"services": map[string]any{
+			"websocket": wsStatus,
+			"database":  dbStatus,
+			"cache":     rcStatus,
+		},
+	}
+}
+
+func detailHealthyStatus(s registry.Service) map[string]any {
+	status := importantHealthyStatus(s)
+
+	var wsConnections int
+	var wsUptime time.Duration
+	if s.Hub() != nil {
+		wsConnections = s.Hub().Count()
+		wsUptime = s.Hub().Uptime()
+	}
+
+	res := map[string]any{
+		"status": status["status"],
+		"services": map[string]any{
+			"websocket": map[string]any{
+				"status":      status["services"].(map[string]any)["websocket"],
+				"connections": wsConnections,
+				"uptime":      wsUptime.Round(time.Second).String(),
+			},
+			"database": map[string]any{
+				"status": status["services"].(map[string]any)["database"],
+				"stats":  s.Manager().Stats(),
+			},
+			"cache": map[string]any{
+				"status": status["services"].(map[string]any)["cache"],
+				"stats":  s.Cache().Stats(),
+			},
+			"system": map[string]any{
+				"cpu":    mgr.GetCPUState(),
+				"memory": mgr.GetMemoryState(),
+				"disk":   mgr.GetDiskState(),
+				"uptime": s.Uptime().Round(time.Second).String(),
+			},
+		},
+	}
+	return res
 }

@@ -34,6 +34,7 @@ type HubInterface interface {
 	Count() int
 	IsClosed() bool
 	Kick(id uint)
+	Uptime() time.Duration
 }
 
 func NewHubInterface(service Service) HubInterface {
@@ -60,6 +61,7 @@ type Hub struct {
 	mu          sync.RWMutex
 	service     Service
 	middlewares []MessageMiddleware
+	runningAt   time.Time
 }
 
 func NewHub(service Service) *Hub {
@@ -74,6 +76,7 @@ func NewHub(service Service) *Hub {
 		mu:          sync.RWMutex{},
 		service:     service,
 		middlewares: []MessageMiddleware{},
+		runningAt:   time.Now(),
 	}
 	hub.Use(Filter(hub))
 	hub.Use(AckMiddleware(hub))
@@ -177,6 +180,10 @@ func (h *Hub) Count() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
+}
+
+func (h *Hub) Uptime() time.Duration {
+	return time.Since(h.runningAt)
 }
 
 func (h *Hub) Register(c *Client) {
