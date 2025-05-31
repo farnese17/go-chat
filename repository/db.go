@@ -8,6 +8,7 @@ import (
 
 	"github.com/farnese17/chat/config"
 	"github.com/farnese17/chat/service/model"
+	"github.com/farnese17/chat/utils"
 	"github.com/farnese17/chat/utils/logger"
 	"github.com/go-redis/redis"
 	"go.uber.org/zap"
@@ -58,7 +59,46 @@ func SetupSQL(dsn string) (*gorm.DB, *sql.DB, error) {
 		zap.Duration("ConnMaxLifeTime", time.Hour),
 	)
 	timeoutMiddleware(time.Second * 5)(db)
+	createSuperAdminIfNotExist(db)
 	return db, sqlDB, nil
+}
+
+func createSuperAdminIfNotExist(db *gorm.DB) error {
+	var managers []model.Manager
+	tx := db.Begin()
+	err := tx.Select("*").Find(&managers).Error
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	for _, mgr := range managers {
+		if mgr.Permissions == model.MgrSuperAdministrator {
+			tx.Commit()
+			return nil
+		}
+	}
+	pwd, err := utils.HashPassword("aaaaaa")
+	if err != nil {
+		tx.Commit()
+		return err
+	}
+	manager := &model.Manager{
+		Permissions: model.MgrSuperAdministrator,
+		Username:    "admin",
+		Password:    pwd,
+	}
+	err = tx.Create(manager).Error
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Created a super admin.\nid: %d,username: admin,password: aaaaaa\n", manager.ID)
+	logger.GetLogger().Info(fmt.Sprintf("Created a super admin.id: %d,username: %s,password: aaaaaa", manager.ID, manager.Username))
+	return nil
 }
 
 func fixAutoIncrement(db *gorm.DB) error {
