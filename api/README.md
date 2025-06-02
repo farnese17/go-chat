@@ -105,3 +105,88 @@
 | `/users/:id/ban/nopost`       | PUT    | 禁止发布                          | 是   | `:user_id`                                                                                     |
 | `/users/:id/ban/mute`         | PUT    | 禁言                              | 是   | `:user_id`                                                                                     |
 | `/users/:id/ban/unban`        | PUT    | 撤销封禁                          | 是   | `:user_id`                                                                                     |
+
+## websocket
+
+| 端点  | 方法 | 描述         | 认证 | 参数         |
+| ----- | ---- | ------------ | ---- | ------------ |
+| `/ws` | GET  | 建立 ws 连接 | 是   | Bearer token |
+
+websocket 服务主动关闭连接: `1012 Service Restart:服务已停止`<br>
+websocket 服务不可用: `Error: Unexpected server response: 503`
+
+### 消息类型
+
+|     |                |
+| --- | -------------- |
+| 100 | 系统消息       |
+| 101 | 聊天消息       |
+| 102 | 群聊消息       |
+| 103 | 黑名单更新消息 |
+| 104 | 消息确认消息   |
+| 207 | 群组申请消息   |
+
+### 消息结构
+
+| 适用类型            | 结构                                                                                                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 100,101,102,103,207 | <pre>{<br>"type":message_type,<br>"body":<br>{<br>"id":"message_id"(留空),<br>"type":message_type,<br>"from":sender,<br>"to":receiver,<br>"body":"content",<br>"time":unix_time(可留空),<br>"extra":"other"<br>}<br>}</pre><br> 注: 以上留空由中间件填充 |
+| 104                 | <pre>{"type":message_type,<br>"body":<br>{<br>"id":"message_id",<br>"type":message_type,<br>"to":receiver,<br>"time":unix_time,<br>}<br>}</pre><br>注: 字段值从收到的消息获取                                                                            |
+
+#### 消息确认
+
+go-chat 在收到消息处理完毕后，会返回一条 104 类型的消息，应该自行设置一个间隔，在没有收到确认消息后重发。
+结构如下:
+
+```json
+// message来自收到的消息
+{
+  "type": 104,
+  "id": "message_id",
+  "to": "message_from" // 只是用于发送
+}
+```
+
+go-chat 在发送消息后，会等待确认消息，在配置项`check_ack_timeout`时间过后，会重新发送,所以在收到除 104 类型消息外，都应该返回一条确认消息。结构如下:
+
+```json
+// message来自收到的消息
+{
+  "type": 104,
+  "body": {
+    "type": 104,
+    "id": "message_id",
+    "time": "message_time",
+    "to": "message_to"
+  }
+}
+```
+
+#### 黑名单更新消息
+
+由前端快速拦截
+用户登录后获取好友列表<br>`blocked`表示已拉黑的用户<br>`other_blocked`表示拉黑该用户的用户<br>
+比如:<br>
+通过 http 请求拉黑用户后，如果 go-chat 没有返回错误，应该将用户移到`blocked`分组<br>
+之后会通过 websocket 收到一条消息类似`将 xx 添加到黑名单`<br>
+对方会收到 103 类型消息,对方在收到消息后应该将`from`移到`other_blocked`<br>
+撤销拉黑则是将`blocked`分组的对应用户移除,对方将`other_blocked`分组对应的用户移除<br>
+结构如下:
+
+```json
+{
+  "type": 103,
+  "from": "requester_id",
+  "to": "target_id",
+  "extra": true // 拉黑
+}
+```
+
+```json
+{
+  "type": 103,
+  "from": "requester_id",
+  "to": "target_id",
+  "extra": false // 撤销拉黑
+}
+```
