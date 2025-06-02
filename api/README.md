@@ -2,12 +2,24 @@
 
 统一前缀`/api/v1`
 
+[登录与登出](#login)<br>
+[用户](#users)<br>
+[好友](#friends)<br>
+[群组](#groups)<br>
+[文件](#files)<br>
+[管理](#managers)<br>
+[websocket](#websocket)
+
+<span id="login"></span>
+
 ## 登录与登出
 
 | 端点      | 方法 | 描述     | 认证 | 参数                                                                    |
 | --------- | ---- | -------- | ---- | ----------------------------------------------------------------------- |
 | `/login`  | POST | 用户登录 | 否   | <pre>{<br>"account":"id/phone/email",<br>"password":"123456"<br>}</pre> |
 | `/logout` | POST | 用户登出 | 是   | -                                                                       |
+
+<span id="users"></span>
 
 ## 用户
 
@@ -21,6 +33,8 @@
 | `/`         | DELETE | 注销账号         | 是   | -                                                                                                                      |
 | `/`         | PUT    | 更新当前用户信息 | 是   | <pre>{<br>"field":"avatar/username/phone/email",<br>"value":"value"<br>}</pre>                                         |
 | `/password` | PUT    | 更新当前用户密码 | 是   | <pre>{<br>"old":"oldpwd",<br>"new":"newpwd",<br>"comfirm":"newpwd"<br>} </pre>                                         |
+
+<span id="friends"></span>
 
 ## 好友
 
@@ -39,6 +53,8 @@
 | `/setgroup/:id` | PUT    | 设置好友分组 | 是   | `:user_id`<br>`?group=newGroup`                                                            |
 | `/search`       | GET    | 搜索用户     | 是   | `?value=id/name`<br><pre>{<br>"page_size:10,<br>"last_id":0,<br>"has_more":true<br>}</pre> |
 | `/`             | GET    | 获取好友列表 | 是   | -                                                                                          |
+
+<span id="groups"></span>
 
 ## 群组
 
@@ -69,6 +85,8 @@
 | `/:gid/announces/latest`        | GET    | 获取最新一条公告,需要在群组内                    | 是   | `:group_id`                                                                                                                                                                  |
 | `/:gid/announces/:id`           | DELETE | 删除一条公告,需要群组或管理员权限                | 是   | `:group_id`<br>`:announce_id`                                                                                                                                                |
 
+<span id="files"></span>
+
 ## 文件
 
 | 端点                  | 方法   | 描述     | 认证 | 参数                            |
@@ -77,6 +95,8 @@
 | `/files/:id`          | GET    | 获取文件 | 否   | `:file_id `                     |
 | `/files/download/:id` | GET    | 下载文件 | 否   | `:file_id `                     |
 | `/files/delete/:id`   | DELETE | 删除文件 | 是   | `:file_id `                     |
+
+<span id="managers"></span>
 
 ## 管理员
 
@@ -105,6 +125,8 @@
 | `/users/:id/ban/nopost`       | PUT    | 禁止发布                          | 是   | `:user_id`                                                                                     |
 | `/users/:id/ban/mute`         | PUT    | 禁言                              | 是   | `:user_id`                                                                                     |
 | `/users/:id/ban/unban`        | PUT    | 撤销封禁                          | 是   | `:user_id`                                                                                     |
+
+<span id="websocket"></span>
 
 ## websocket
 
