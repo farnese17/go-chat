@@ -1,6 +1,6 @@
 # go-chat
 
-一个基于 websocket 技术的实时聊天应用程序，支持多人对话、文件发送。
+go-chat 是一款采用 WebSocket 技术开发的实时聊天应用，支持多人对话与文件发送功能，适用于团队协作、在线交流等场景。通过高性能架构设计，实现了低延迟的消息传递与稳定的实时通信体验。
 
 ## 主要特性
 
@@ -39,7 +39,7 @@ cd ./go-chat
 ### 环境准备
 
 - go 环境
-- mysql
+- mysql-5.7
 - redis
 
 ### 编译
@@ -125,8 +125,8 @@ docker-compose up -d
 
 查看详细的 API 文档请访问 `/api/README.md` 端点
 
-| 端点                       | 方法 | 描述     | 认证 | 参数                                                                                  |
-| -------------------------- | ---- | -------- | ---- | ------------------------------------------------------------------------------------- |
-| `/api/v1/login`            | POST | 用户登录 | 否   | `{account:'id/phone/email',"password":"123456"}`                                      |
-| `/api/v1/register`         | POST | 用户注册 | 否   | `{username:"test","password":"123456","phone":"12345678901","email":"test@mail.com"}` |
-| `/api/v1/managers/healthy` | GET  | 健康状态 | 是   | `?details=true`                                                                       |
+| 端点                       | 方法 | 描述     | 认证 | 参数                                                                                                                    |
+| -------------------------- | ---- | -------- | ---- | ----------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/login`            | POST | 用户登录 | 否   | <pre>{<br> "account": "id/phone/email",<br> "password": "123456"<br>}</pre>                                             |
+| `/api/v1/users/register`   | POST | 用户注册 | 否   | <pre>{<br>"username":"test",<br>"password":"123456",<br>"phone":"12345678901",<br>"email":`"test@mail.com"`<br>} </pre> |
+| `/api/v1/managers/healthy` | GET  | 服务状态 | 是   | `?details=true`(可选)                                                                                                   |
