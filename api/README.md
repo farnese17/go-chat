@@ -165,7 +165,7 @@
 {
   "type": 104,
   "id": "message_id",
-  "to": "message_from" // 只是用于发送
+  "to": message_from // 只是用于发送
 }
 ```
 
